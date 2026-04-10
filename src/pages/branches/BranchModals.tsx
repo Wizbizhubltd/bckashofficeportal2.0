@@ -213,7 +213,7 @@ export function CreateBranchModal({
     onSubmit: async (values) => {
       await onSubmit({
         name: values.name.trim(),
-        code: values.code.trim(),
+        code: values.code.trim()+ Math.floor(100 + Math.random() * 900).toString(),
         state: values.state,
         city: values.city,
         address: values.address.trim(),

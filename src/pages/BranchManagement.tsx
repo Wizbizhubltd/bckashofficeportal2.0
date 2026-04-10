@@ -1191,7 +1191,7 @@ export function BranchManagement() {
                       </td>
                       <td className="px-6 py-4 text-gray-600">{branch.staff ?? 0}</td>
                       <td className="px-6 py-4 font-medium text-gray-700">
-                        {branch.totalFundAllocated ? formatFund(branch.totalFundAllocated) : branch.fund}
+                        {branch.totalFundAllocated ? formatFund(branch?.totalFundAllocated) : branch?.fund}
                       </td>
                       <td className="px-6 py-4 text-gray-600">{branch.activeLoans ?? 0}</td>
                       <td className="px-6 py-4">

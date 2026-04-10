@@ -3395,16 +3395,7 @@ export function CustomerDetail() {
         </div>
 
         <div className="p-6">
-            {canEditActiveTab &&
-          <div className="flex justify-end mb-4">
-              <button
-              onClick={() => openTabEditModal(activeTab)}
-              className="px-4 py-2 border border-indigo-200 text-indigo-600 text-sm font-heading font-bold rounded-lg hover:bg-indigo-50 transition-colors">
-
-                Update {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
-              </button>
-            </div>
-          }
+           
           {!canEditCustomerRecord && isMarketer && (customer.isApproved || hasApprovedLoan) &&
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-body text-amber-800">
               Approved customers or approved loans can’t be edited by marketers.
