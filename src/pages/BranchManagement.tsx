@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -263,6 +263,58 @@ function formatFund(amount: number): string {
   return `₦${amount.toLocaleString()}`;
 }
 
+function toFiniteNumber(value: unknown): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = Number(value.replace(/[^0-9.-]/g, ''));
+    return Number.isFinite(normalized) ? normalized : 0;
+  }
+
+  return 0;
+}
+
+function toStringId(value: unknown): string {
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return '';
+  }
+
+  const source = value as Record<string, unknown>;
+  const candidate = source.id ?? source._id;
+  if (typeof candidate === 'string' || typeof candidate === 'number') {
+    return String(candidate);
+  }
+
+  return '';
+}
+
+function computeBranchFundingTotalFromRaw(raw: unknown): number {
+  if (!raw || typeof raw !== 'object') {
+    return 0;
+  }
+
+  const source = raw as Record<string, unknown>;
+  if (!Array.isArray(source.fundingHistory)) {
+    return 0;
+  }
+
+  return source.fundingHistory.reduce((sum, item) => {
+    if (!item || typeof item !== 'object') {
+      return sum;
+    }
+
+    const entry = item as Record<string, unknown>;
+    const amount = typeof entry.amount === 'number' ? entry.amount : Number(entry.amount);
+    return sum + (Number.isFinite(amount) ? amount : 0);
+  }, 0);
+}
+
 function mapFundingHistory(raw: unknown): BranchData['fundingHistory'] {
   if (!Array.isArray(raw)) {
     return [];
@@ -394,7 +446,24 @@ function mapBranchFromApi(raw: unknown, managers: BranchManagerLookup[]): Branch
   const isActive = Boolean(source.isActive);
   const createdAt = typeof source.createdAt === 'string' ? source.createdAt : '';
   const dateCreated = createdAt ? new Date(createdAt).toISOString().split('T')[0] : '';
-  const walletBalance = typeof source.walletBalance === 'number' ? source.walletBalance : 0;
+  const walletBalance = toFiniteNumber(source.walletBalance);
+  const totalFundAllocated =
+    toFiniteNumber(source.totalFundAllocated) > 0
+      ? toFiniteNumber(source.totalFundAllocated)
+      : computeBranchFundingTotalFromRaw(source);
+  const staffCount =
+    toFiniteNumber(source.staffCount) > 0
+      ? toFiniteNumber(source.staffCount)
+      : toFiniteNumber(source.staff) > 0
+        ? toFiniteNumber(source.staff)
+        : 0;
+  const activeLoansCount =
+    toFiniteNumber(source.activeLoansCount) > 0
+      ? toFiniteNumber(source.activeLoansCount)
+      : toFiniteNumber(source.activeLoans) > 0
+        ? toFiniteNumber(source.activeLoans)
+        : 0;
+  const resolvedManagerId = toStringId(source.managerId);
 
   return {
     id: String(id),
@@ -403,13 +472,13 @@ function mapBranchFromApi(raw: unknown, managers: BranchManagerLookup[]): Branch
     state,
     city,
     address,
-    managerId: typeof source.managerId === 'string' ? source.managerId : undefined,
+    managerId: resolvedManagerId || undefined,
     organizationId: typeof source.organizationId === 'string' ? source.organizationId : undefined,
     location: `${city}, ${state}`,
     manager: resolveManagerDisplayName(source.managerId, managers),
-    staff: 0,
-    fund: formatFund(walletBalance),
-    activeLoans: 0,
+    staff: staffCount,
+    fund: formatFund(totalFundAllocated || walletBalance),
+    activeLoans: activeLoansCount,
     status: isActive ? 'Active' : 'Inactive',
     phone: typeof source.phone === 'string' ? source.phone : '',
     email: typeof source.email === 'string' ? source.email : '',
@@ -418,6 +487,7 @@ function mapBranchFromApi(raw: unknown, managers: BranchManagerLookup[]): Branch
     repaymentRate: '-',
     bankAccounts: mapBankAccounts(source.bankAccounts),
     fundingHistory: mapFundingHistory(source.fundingHistory),
+    totalFundAllocated,
   };
 }
 
@@ -470,7 +540,6 @@ export function BranchManagement() {
       ? user.organizationId.trim()
       : null;
   const [branches, setBranches] = useState<BranchData[]>(initialBranches);
-  const [statusUpdatingIds, setStatusUpdatingIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [filterOpen, setFilterOpen] = useState(false);
@@ -483,8 +552,9 @@ export function BranchManagement() {
   const [editOpen, setEditOpen] = useState(false);
   const [fundOpen, setFundOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const historyLoading = false;
   const [selectedBranch, setSelectedBranch] = useState<BranchData | null>(null);
+  const [hasLoadedFromApi, setHasLoadedFromApi] = useState(false);
   // Toast
   const [toast, setToast] = useState<{
     message: string;
@@ -509,22 +579,29 @@ export function BranchManagement() {
   }
 
   useEffect(() => {
+    if (hasLoadedFromApi) {
+      return;
+    }
+
     if (lookupBranches.length > 0) {
       const normalized = lookupBranches
         .map((branch) =>
-          mapBranchFromApi({
-            id: branch.id,
-            name: branch.name,
-            code: branch.code,
-            city: branch.city,
-            state: branch.state,
-            address: branch.address,
-            managerId: branch.managerId,
-            organizationId: branch.organizationId,
-            phone: branch.phone,
-            email: branch.email,
-            isActive: branch.isActive,
-          }, branchManagers),
+          mapBranchFromApi(
+            {
+              id: branch.id,
+              name: branch.name,
+              code: branch.code,
+              city: branch.city,
+              state: branch.state,
+              address: branch.address,
+              managerId: branch.managerId,
+              organizationId: branch.organizationId,
+              phone: branch.phone,
+              email: branch.email,
+              isActive: branch.isActive,
+            },
+            branchManagers,
+          ),
         )
         .filter(Boolean) as BranchData[];
 
@@ -535,7 +612,50 @@ export function BranchManagement() {
     }
 
     setBranches(initialBranches);
-  }, [branchManagers, lookupBranches]);
+  }, [branchManagers, hasLoadedFromApi, lookupBranches]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadBranches = async () => {
+      try {
+        const response = await api.get('/admin/branches', {
+          params: {
+            includeInactive: true,
+          },
+        });
+
+        const source = response as { data?: unknown; payload?: unknown; items?: unknown };
+        const rawBranches =
+          (Array.isArray(source.data) ? source.data : null) ||
+          (Array.isArray(source.payload) ? source.payload : null) ||
+          (Array.isArray(source.items) ? source.items : null) ||
+          [];
+
+        const mapped = rawBranches
+          .map((entry) => mapBranchFromApi(entry, branchManagers))
+          .filter((entry): entry is BranchData => entry !== null);
+
+        if (!isMounted || mapped.length === 0) {
+          return;
+        }
+
+        setBranches(mapped);
+        setHasLoadedFromApi(true);
+        mapped.forEach((branch) => {
+          dispatch(upsertBranchScoped(mapBranchToLookupPayload(branch)));
+        });
+      } catch {
+        // keep lookup/mock fallback
+      }
+    };
+
+    void loadBranches();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [branchManagers, dispatch]);
   // Dynamic KPIs
   const totalBranches = branches.length;
   const activeBranches = branches.filter((b) => b.status === 'Active').length;
@@ -800,55 +920,6 @@ export function BranchManagement() {
     }
   }
 
-  async function handleStatusToggle(branch: BranchData, event: React.MouseEvent) {
-    event.stopPropagation();
-
-    if (statusUpdatingIds.includes(branch.id)) {
-      return;
-    }
-
-    const shouldActivate = branch.status !== 'Active';
-
-    setStatusUpdatingIds((previous) => [...previous, branch.id]);
-
-    try {
-      if (shouldActivate) {
-        await api.patch(`/admin/branches/${branch.id}/reactivate`);
-      } else {
-        await api.patch(`/admin/branches/${branch.id}/deactivate`);
-      }
-
-      const updatedBranch: BranchData = {
-        ...branch,
-        status: shouldActivate ? 'Active' : 'Inactive',
-      };
-      setBranches((prev) => upsertBranchData(prev, updatedBranch));
-      dispatch(upsertBranchScoped(mapBranchToLookupPayload(updatedBranch)));
-      showToast(`Branch ${shouldActivate ? 'activated' : 'deactivated'} successfully`);
-    } catch {
-      setBranches((prev) =>
-        prev.map((item) =>
-          item.id === branch.id
-            ? { ...item, status: shouldActivate ? 'Active' : 'Inactive' }
-            : item,
-        ),
-      );
-      const currentBranch = branches.find((item) => item.id === branch.id);
-      if (currentBranch) {
-        dispatch(
-          upsertBranchScoped(
-            mapBranchToLookupPayload({
-              ...currentBranch,
-              status: shouldActivate ? 'Active' : 'Inactive',
-            }),
-          ),
-        );
-      }
-      showToast(`Branch ${shouldActivate ? 'activated' : 'deactivated'} locally (API unavailable)`);
-    } finally {
-      setStatusUpdatingIds((previous) => previous.filter((id) => id !== branch.id));
-    }
-  }
   async function handleFund(id: string, amount: number, note: string) {
     try {
       const response = await api.post(`/admin/branches/${id}/funding`, {
@@ -885,52 +956,6 @@ export function BranchManagement() {
       );
       const branch = branches.find((b) => b.id === id);
       showToast(`₦${amount.toLocaleString()} allocated to ${branch?.name || id} (local)`);
-    }
-  }
-  function openEdit(branch: BranchData, e: React.MouseEvent) {
-    e.stopPropagation();
-    setSelectedBranch(branch);
-    setEditOpen(true);
-  }
-  function openFund(branch: BranchData, e: React.MouseEvent) {
-    e.stopPropagation();
-    setSelectedBranch(branch);
-    setFundOpen(true);
-  }
-
-  async function openHistory(branch: BranchData, e: React.MouseEvent) {
-    e.stopPropagation();
-    setSelectedBranch(branch);
-    setHistoryOpen(true);
-    setHistoryLoading(true);
-
-    try {
-      const response = await api.get(`/admin/branches/${branch.id}/funding-history`);
-      const payload = extractItem<Record<string, unknown>>(response);
-      const fundingHistory = mapFundingHistory(payload?.fundingHistory);
-
-      setBranches((previous) =>
-        previous.map((item) =>
-          item.id === branch.id
-            ? {
-                ...item,
-                fundingHistory,
-              }
-            : item,
-        ),
-      );
-      setSelectedBranch((previous) =>
-        previous && previous.id === branch.id
-          ? {
-              ...previous,
-              fundingHistory,
-            }
-          : previous,
-      );
-    } catch {
-      // keep existing local history
-    } finally {
-      setHistoryLoading(false);
     }
   }
   return (
@@ -1171,7 +1196,10 @@ export function BranchManagement() {
                   {filtered.map((branch) =>
                   <tr
                     key={branch.id}
-                    onClick={() => navigate(`/branches/${branch.id}`)}
+                    onClick={() => {
+                      setSelectedBranch(branch);
+                      navigate(`/branches/${branch.id}`);
+                    }}
                     className="hover:bg-gray-50 transition-colors cursor-pointer">
 
                       <td className="px-6 py-4">

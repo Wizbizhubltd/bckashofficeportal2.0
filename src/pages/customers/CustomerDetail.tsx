@@ -1268,9 +1268,9 @@ export function CustomerDetail() {
     const normalizedLoanStatus = typeof loan.status === 'string' ? loan.status.trim().toLowerCase() : '';
     return normalizedLoanStatus === 'approved' || normalizedLoanStatus === 'active' || normalizedLoanStatus === 'disbursed';
   });
-  const canEditCustomerRecord = isSuperAdmin || (isMarketer && !customer.isApproved && !hasApprovedLoan);
+  const canSeeUpdateRecordButton = isMarketer;
+  const canEditCustomerRecord = isMarketer && !customer.isApproved;
   const canChangeCustomerPhoto = isMarketer && !customer.isApproved && !hasApprovedLoan;
-  const canEditActiveTab = canEditCustomerRecord && EDITABLE_TAB_KEYS.has(activeTab);
   const [loanProductOptions, setLoanProductOptions] = useState<CustomerLoanProductOption[]>([]);
   const [loanFeeRules, setLoanFeeRules] = useState<CustomerLoanFeeRule[]>([]);
   const [isLoadingCustomerLoans, setIsLoadingCustomerLoans] = useState(false);
@@ -2264,6 +2264,38 @@ export function CustomerDetail() {
     };
     showToast(`${labels[type] || type} verified successfully`);
   }
+
+  const renderUpdateRecordButton = (tabKey: string) => {
+    if (!canSeeUpdateRecordButton) {
+      return null;
+    }
+
+    const isTabEditable = EDITABLE_TAB_KEYS.has(tabKey);
+    const isDisabled = !isTabEditable || !canEditCustomerRecord;
+
+    return (
+      <div className="mb-4 flex justify-end">
+        <button
+          type="button"
+          onClick={() => openTabEditModal(tabKey)}
+          disabled={isDisabled}
+          title={
+            isTabEditable
+              ? canEditCustomerRecord
+                ? 'Update record'
+                : customer.isApproved
+                  ? 'Customer is approved. Record updates are disabled.'
+                  : 'You do not have permission to update this tab'
+              : 'This tab is read-only'
+          }
+          className="px-4 py-2 rounded-lg border border-primary/20 text-primary text-sm font-heading font-bold hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+
+          Update Record
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
@@ -3404,6 +3436,8 @@ export function CustomerDetail() {
 
           {/* Personal Information */}
           {activeTab === 'personal' &&
+          <>
+          {renderUpdateRecordButton('personal')}
           <motion.div
             initial={{
               opacity: 0
@@ -3514,9 +3548,14 @@ export function CustomerDetail() {
                   <p className="text-sm font-body font-medium text-gray-800">
                     {item.value}
                   </p>
+                  
                 </div>
+
+              
             )}
             </motion.div>
+            
+            </>
           }
 
           {/* Guarantors */}
@@ -3529,6 +3568,8 @@ export function CustomerDetail() {
               opacity: 1
             }}
             className="space-y-5">
+
+              {renderUpdateRecordButton('guarantors')}
             
               {customer.guarantors.map((g, idx: number) =>
             <div
@@ -3594,6 +3635,8 @@ export function CustomerDetail() {
             animate={{
               opacity: 1
             }}>
+
+              {renderUpdateRecordButton('reference')}
             
               <div className="border border-gray-100 rounded-xl p-5">
                 <div className="flex items-center gap-3 mb-4">
@@ -3709,9 +3752,10 @@ export function CustomerDetail() {
             animate={{
               opacity: 1
             }}
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            
-              {[
+            className="space-y-4">
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {[
             {
               label: 'Group Name',
               value: customer.group.name
@@ -3742,6 +3786,7 @@ export function CustomerDetail() {
                   </p>
                 </div>
             )}
+              </div>
             </motion.div>
           }
 

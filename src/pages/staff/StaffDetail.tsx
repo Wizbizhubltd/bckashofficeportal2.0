@@ -455,6 +455,86 @@ function toStringId(value: unknown): string {
   return '';
 }
 
+function extractItems<T>(response: unknown): T[] {
+  if (!response || typeof response !== 'object') {
+    return [];
+  }
+
+  const source = response as { data?: unknown; payload?: unknown; items?: unknown };
+
+  if (Array.isArray(source.data)) {
+    return source.data as T[];
+  }
+
+  if (Array.isArray(source.payload)) {
+    return source.payload as T[];
+  }
+
+  if (Array.isArray(source.items)) {
+    return source.items as T[];
+  }
+
+  return [];
+}
+
+function resolveBranchIdFromRecord(source: Record<string, unknown>): string {
+  return (
+    toStringId(source.branchId) ||
+    (typeof source.branch === 'object' && source.branch !== null
+      ? toStringId(source.branch as Record<string, unknown>)
+      : '')
+  );
+}
+
+function resolveBranchNameFromRecord(source: Record<string, unknown>): string {
+  if (typeof source.branch === 'string' && source.branch.trim().length > 0) {
+    return source.branch.trim();
+  }
+
+  if (source.branch && typeof source.branch === 'object') {
+    const branchSource = source.branch as Record<string, unknown>;
+    if (typeof branchSource.name === 'string' && branchSource.name.trim().length > 0) {
+      return branchSource.name.trim();
+    }
+  }
+
+  return '';
+}
+
+function isBranchManagerRecord(source: Record<string, unknown>): boolean {
+  const roleValue =
+    (typeof source.userLevel === 'string' && source.userLevel) ||
+    (typeof source.role === 'string' && source.role) ||
+    (typeof source.role === 'object' && source.role !== null && typeof (source.role as Record<string, unknown>).name === 'string'
+      ? ((source.role as Record<string, unknown>).name as string)
+      : '') ||
+    (typeof source.roleName === 'string' && source.roleName) ||
+    '';
+
+  const normalized = roleValue.toLowerCase().replace(/[\s_-]/g, '');
+  return normalized === 'branchmanager';
+}
+
+function toDisplayName(source: Record<string, unknown>): string {
+  const firstName = typeof source.firstName === 'string' ? source.firstName : '';
+  const lastName = typeof source.lastName === 'string' ? source.lastName : '';
+  const joinedName = `${firstName} ${lastName}`.trim();
+
+  if (joinedName.length > 0) {
+    return toTitleCase(joinedName);
+  }
+
+  if (typeof source.name === 'string' && source.name.trim().length > 0) {
+    return toTitleCase(source.name.trim());
+  }
+
+  if (typeof source.email === 'string' && source.email.trim().length > 0) {
+    return source.email.trim();
+  }
+
+  return '';
+}
+
 function resolveStaffNameFromReference(value: unknown, allStaff: Record<string, unknown>[]): string {
   if (typeof value === 'string' && value.trim().length > 0) {
     const trimmed = value.trim();
@@ -724,7 +804,9 @@ export function StaffDetail() {
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
-  const [reportingToOptions, setReportingToOptions] = useState<SelectOption[]>([]);
+  const [branchManagerDirectory, setBranchManagerDirectory] = useState<
+    Array<{ label: string; value: string; branchId: string; branchName: string }>
+  >([]);
   // Staff KYC modal
   const [staffKycOpen, setStaffKycOpen] = useState(false);
   // Toast state
@@ -885,19 +967,6 @@ export function StaffDetail() {
     }
     return Array.from(uniqueValues).map((value) => ({ label: value, value }));
   }, [branches, staff.branch]);
-
-  const reportingToSelectOptions = useMemo<SelectOption[]>(() => {
-    const uniqueValues = new Set<string>();
-    reportingToOptions.forEach((item) => {
-      if (typeof item.value === 'string' && item.value.trim().length > 0) {
-        uniqueValues.add(item.value);
-      }
-    });
-    if (typeof staff.reportingTo === 'string' && staff.reportingTo.trim().length > 0 && staff.reportingTo !== '-') {
-      uniqueValues.add(staff.reportingTo);
-    }
-    return Array.from(uniqueValues).map((value) => ({ label: value, value }));
-  }, [reportingToOptions, staff.reportingTo]);
 
   const employmentTypeOptions = useMemo<SelectOption[]>(() => {
     const base = ['Full-Time', 'Part-Time', 'Contract', 'Internship', 'Temporary'];
@@ -1275,23 +1344,71 @@ export function StaffDetail() {
           return;
         }
 
-        const reportingReference =
-          (typeof matched.reportingTo === 'string' && matched.reportingTo.trim().length > 0
-            ? matched.reportingTo
-            : undefined) ||
-          (typeof matched.reportingToId === 'string' && matched.reportingToId.trim().length > 0
-            ? matched.reportingToId
-            : undefined) ||
-          '';
+        let staffDirectory: Record<string, unknown>[] = [matched];
 
-        if (isMounted) {
-          const normalizedReporting = toTitleCase(reportingReference.trim());
-          setReportingToOptions(
-            normalizedReporting.length > 0 ? [{ label: normalizedReporting, value: normalizedReporting }] : [],
-          );
+        try {
+          const staffResponse = await api.get('/admin/staff', {
+            params: {
+              includeInactive: true,
+            },
+          });
+
+          const listedStaff = extractItems<unknown>(staffResponse)
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === 'object'));
+
+          if (listedStaff.length > 0) {
+            staffDirectory = listedStaff;
+          }
+        } catch {
+          // keep detail response as fallback source
         }
 
-        const mapped = mapApiStaffToView(matched, routeId, departments, roles, branches, [matched]);
+        const currentStaffBackendId =
+          toStringId(matched.id) ||
+          toStringId(matched._id) ||
+          toStringId(matched.staffId);
+
+        const managerDirectory = staffDirectory
+          .filter((entry) => {
+            if (!isBranchManagerRecord(entry)) {
+              return false;
+            }
+
+            const managerId =
+              toStringId(entry.id) ||
+              toStringId(entry._id) ||
+              toStringId(entry.staffId);
+            if (managerId && currentStaffBackendId && managerId === currentStaffBackendId) {
+              return false;
+            }
+
+            return true;
+          })
+          .map((entry) => {
+            const displayName = toDisplayName(entry);
+            const managerBranchId = resolveBranchIdFromRecord(entry);
+            const managerBranchName = resolveBranchNameFromRecord(entry);
+
+            if (displayName.length === 0) {
+              return null;
+            }
+
+            return {
+              label: displayName,
+              value: displayName,
+              branchId: managerBranchId,
+              branchName: managerBranchName,
+            };
+          })
+          .filter(
+            (entry): entry is { label: string; value: string; branchId: string; branchName: string } => entry !== null,
+          );
+
+        if (isMounted) {
+          setBranchManagerDirectory(managerDirectory);
+        }
+
+        const mapped = mapApiStaffToView(matched, routeId, departments, roles, branches, staffDirectory);
         if (!mapped) {
           return;
         }
@@ -1311,6 +1428,66 @@ export function StaffDetail() {
       isMounted = false;
     };
   }, [id, branches, departments, roles]);
+
+  const reportingToSelectOptions = useMemo<SelectOption[]>(() => {
+    const selectedBranchValue =
+      editTab === 'employment' && isEditModalOpen
+        ? String(editFormik.values.branch ?? '').trim()
+        : typeof staff.branch === 'string'
+          ? staff.branch.trim()
+          : '';
+
+    const normalizedSelectedBranchName = selectedBranchValue.toLowerCase();
+    const selectedBranch = branches.find(
+      (item) => typeof item.name === 'string' && item.name.trim().toLowerCase() === normalizedSelectedBranchName,
+    );
+    const selectedBranchId = selectedBranch?.id ?? '';
+
+    const filteredManagers = branchManagerDirectory.filter((item) => {
+      if (selectedBranchId.length > 0 && item.branchId.length > 0) {
+        return item.branchId === selectedBranchId;
+      }
+
+      if (normalizedSelectedBranchName.length > 0 && item.branchName.length > 0) {
+        return item.branchName.trim().toLowerCase() === normalizedSelectedBranchName;
+      }
+
+      return true;
+    });
+
+    const uniqueValues = new Map<string, SelectOption>();
+
+    filteredManagers.forEach((item) => {
+      if (item.value.trim().length > 0) {
+        uniqueValues.set(item.value, { label: item.label, value: item.value });
+      }
+    });
+
+    const currentReportingValue =
+      editTab === 'employment' && isEditModalOpen
+        ? String(editFormik.values.reportingTo ?? '').trim()
+        : typeof staff.reportingTo === 'string'
+          ? staff.reportingTo.trim()
+          : '';
+
+    if (currentReportingValue.length > 0 && currentReportingValue !== '-' && !uniqueValues.has(currentReportingValue)) {
+      uniqueValues.set(currentReportingValue, {
+        label: currentReportingValue,
+        value: currentReportingValue,
+      });
+    }
+
+    return Array.from(uniqueValues.values());
+  }, [
+    branchManagerDirectory,
+    branches,
+    editFormik.values.branch,
+    editFormik.values.reportingTo,
+    editTab,
+    isEditModalOpen,
+    staff.branch,
+    staff.reportingTo,
+  ]);
 
   async function handleStaffAction(action: string, inputValue?: string) {
     setActiveModal(null);
