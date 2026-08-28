@@ -11,7 +11,7 @@ import {
 import { useFormik } from 'formik';
 import { Logo } from '../components/Logo';
 import { env } from '../config/env';
-import { authService } from '../services/auth.service';
+import { authService } from '../services/auth/auth.service';
 import { forgotPasswordSchema } from '../validators/authSchemas';
 export function ForgotPassword() {
   const navigate = useNavigate();
@@ -19,8 +19,10 @@ export function ForgotPassword() {
   const [loading, setLoading] = useState(false);
   const validEmails = [
   'admin@bckash.com',
+  'admin.staff@bckash.com',
   'manager.ikeja@bckash.com',
-  'auth@bckash.com'];
+  'approver@bckash.com',
+  'marketer@bckash.com'];
 
   const formik = useFormik({
     initialValues: {
@@ -211,10 +213,13 @@ export function ForgotPassword() {
               }
             </button>
 
+            {env.enableMockAuth &&
             <p className="text-center text-xs text-gray-400 mt-4">
-              Demo emails: admin@bckash.com · manager.ikeja@bckash.com ·
-              auth@bckash.com
-            </p>
+                Demo emails: admin@bckash.com · admin.staff@bckash.com ·
+                manager.ikeja@bckash.com · approver@bckash.com ·
+                marketer@bckash.com
+              </p>
+            }
           </form>
         </motion.div>
       </div>

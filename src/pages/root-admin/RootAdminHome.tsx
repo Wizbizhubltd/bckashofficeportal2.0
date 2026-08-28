@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LoaderIcon } from 'lucide-react';
-import { getRootAdminToken, OrganizationRecord, rootAdminService } from '../../services/root-admin.service';
+import { getRootAdminToken, OrganizationRecord, rootAdminService } from '../../services/root-admin/root-admin.service';
 
 export function RootAdminHome() {
   const navigate = useNavigate();

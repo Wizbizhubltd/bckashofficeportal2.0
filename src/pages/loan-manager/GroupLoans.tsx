@@ -1,95 +1,155 @@
-import React from 'react';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SearchIcon, FilterIcon, MoreVerticalIcon } from 'lucide-react';
+import { SearchIcon, FilterIcon, MoreVerticalIcon, Loader2Icon } from 'lucide-react';
 import { StatusBadge } from '../../components/StatusBadge';
-const mockGroups = [
-{
-  id: 'GRP-001',
-  loanId: 'LN-0023',
-  name: 'Iya Oloja Market Women',
-  members: 15,
-  totalLoan: '₦450,000',
-  balance: '₦120,000',
-  status: 'Active'
-},
-{
-  id: 'GRP-002',
-  loanId: 'APP-2026-089',
-  name: 'Alaba Traders Union',
-  members: 10,
-  totalLoan: '₦200,000',
-  balance: '₦200,000',
-  status: 'Pending'
-},
-{
-  id: 'GRP-003',
-  loanId: 'LN-0028',
-  name: 'Surulere Youth Coop',
-  members: 25,
-  totalLoan: '₦1,200,000',
-  balance: '₦850,000',
-  status: 'Active'
-},
-{
-  id: 'GRP-004',
-  loanId: 'LN-0011',
-  name: 'Mushin Artisans Group',
-  members: 12,
-  totalLoan: '₦850,000',
-  balance: '₦0',
-  status: 'Completed'
-},
-{
-  id: 'GRP-005',
-  loanId: 'APP-2026-090',
-  name: 'Oshodi Market Vendors',
-  members: 8,
-  totalLoan: '₦300,000',
-  balance: '₦300,000',
-  status: 'Pending'
-},
-{
-  id: 'GRP-006',
-  loanId: 'LN-0023',
-  name: 'Ikeja Transport Sacco',
-  members: 30,
-  totalLoan: '₦2,500,000',
-  balance: '₦1,800,000',
-  status: 'Active'
-},
-{
-  id: 'GRP-007',
-  loanId: 'LN-0028',
-  name: 'Yaba Tailors',
-  members: 5,
-  totalLoan: '₦150,000',
-  balance: '₦45,000',
-  status: 'Overdue'
-}];
+import { useAuth } from '../../context/AuthContext';
+import { useAppSelector } from '../../store/hooks';
+import { loansService, type LoanSummary } from '../../services/loans/loans.service';
+
+type StatusBadgeValue = ComponentProps<typeof StatusBadge>['status'];
+
+const LOAN_STATUS_BADGE: Record<LoanSummary['status'], StatusBadgeValue> = {
+  PENDING_APPROVAL: 'Pending Approval',
+  APPROVED: 'Approved',
+  VERIFICATION_IN_PROGRESS: 'Pending Review',
+  VERIFICATION_FAILED: 'Pending Review',
+  DISBURSED: 'Disbursed',
+  REJECTED: 'Rejected',
+  CLOSED: 'Completed',
+};
+
+const STATUS_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: 'all', label: 'All Statuses' },
+  { value: 'PENDING_APPROVAL', label: 'Pending Approval' },
+  { value: 'APPROVED', label: 'Approved' },
+  { value: 'VERIFICATION_IN_PROGRESS', label: 'Verification In Progress' },
+  { value: 'DISBURSED', label: 'Disbursed' },
+  { value: 'REJECTED', label: 'Rejected' },
+  { value: 'CLOSED', label: 'Closed' },
+];
+
+function formatNaira(kobo: number): string {
+  return `₦${(kobo / 100).toLocaleString()}`;
+}
+
+function formatDisplayDate(value: string | null): string {
+  if (!value) return '-';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? '-' : parsed.toLocaleDateString();
+}
 
 export function GroupLoans() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const branches = useAppSelector((state) => state.lookups.branches);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [branchFilter, setBranchFilter] = useState('');
+  const [loans, setLoans] = useState<LoanSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // ADMIN/SUPERADMIN/APPROVER see every loan (server-side row scoping,
+  // GET /loans mirrors GET /groups) and may narrow it by branch here; a
+  // MANAGER is locked to their own branch and a MARKETER to loans they
+  // themselves raised regardless of what this filter sends.
+  const isAdminTier = user?.role === 'super_admin' || user?.role === 'admin' || user?.role === 'approver';
+
+  useEffect(() => {
+    let isMounted = true;
+    setIsLoading(true);
+    loansService
+      .list(isAdminTier && branchFilter ? { branchId: branchFilter } : undefined)
+      .then((items) => {
+        if (isMounted) {
+          setLoans(items);
+          setLoadError(null);
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setLoans([]);
+          setLoadError(error instanceof Error ? error.message : 'Failed to load group loans');
+        }
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdminTier, branchFilter]);
+
+  const branchName = useMemo(
+    () => (id: string) => branches.find((b) => b.id === id)?.name ?? '—',
+    [branches],
+  );
+
+  const filteredLoans = loans.filter((loan) => {
+    const matchesSearch =
+      !searchQuery.trim() ||
+      [loan.groupName, loan.id, loan.productName ?? ''].some((field) =>
+        field.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
+    const matchesStatus = statusFilter === 'all' || loan.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h2 className="text-xl font-heading font-bold text-primary">
           Group Loans Directory
         </h2>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex gap-2 w-full sm:w-auto flex-wrap">
           <div className="relative flex-1 sm:w-64">
             <SearchIcon
               size={16}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            
             <input
               type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search groups..."
               className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
-            
           </div>
-          <button className="flex items-center px-3 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 text-sm font-medium">
-            <FilterIcon size={16} className="mr-2" /> Filter
-          </button>
+          {isAdminTier && (
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="">All Branches</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </select>
+          )}
+          <div className="relative">
+            <button
+              onClick={() => setFilterOpen(!filterOpen)}
+              className="flex items-center px-3 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 text-sm font-medium">
+              <FilterIcon size={16} className="mr-2" /> Filter
+              {statusFilter !== 'all' && <span className="ml-1.5 w-2 h-2 rounded-full bg-accent" />}
+            </button>
+            {filterOpen && (
+              <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 w-48">
+                {STATUS_FILTER_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => {
+                      setStatusFilter(option.value);
+                      setFilterOpen(false);
+                    }}
+                    className={`w-full text-left px-4 py-2 text-sm font-body hover:bg-gray-50 transition-colors ${statusFilter === option.value ? 'text-primary font-bold bg-primary/5' : 'text-gray-600'}`}>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -99,76 +159,74 @@ export function GroupLoans() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wider font-heading">
                 <th className="px-6 py-4 font-medium">Group Name</th>
+                <th className="px-6 py-4 font-medium">Product</th>
+                <th className="px-6 py-4 font-medium">Branch</th>
                 <th className="px-6 py-4 font-medium">Members</th>
                 <th className="px-6 py-4 font-medium">Total Loan</th>
                 <th className="px-6 py-4 font-medium">Outstanding Balance</th>
+                <th className="px-6 py-4 font-medium">Raised</th>
                 <th className="px-6 py-4 font-medium">Status</th>
                 <th className="px-6 py-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
-              {mockGroups.map((group, idx) =>
-              <tr
-                key={idx}
-                onClick={() =>
-                navigate(`/loan-manager/loans/${group.loanId}`)
-                }
-                className="hover:bg-gray-50 transition-colors cursor-pointer">
-                
+              {filteredLoans.map((loan) => (
+                <tr
+                  key={loan.id}
+                  onClick={() => navigate(`/loan-manager/loans/${loan.id}`)}
+                  className="hover:bg-gray-50 transition-colors cursor-pointer">
                   <td className="px-6 py-4">
-                    <p className="font-heading font-medium text-primary">
-                      {group.name}
-                    </p>
-                    <p className="text-xs text-gray-400">{group.id}</p>
+                    <p className="font-heading font-medium text-primary">{loan.groupName}</p>
+                    <p className="text-xs text-gray-400">{loan.id}</p>
                   </td>
-                  <td className="px-6 py-4 text-gray-600">{group.members}</td>
-                  <td className="px-6 py-4 font-medium text-gray-700">
-                    {group.totalLoan}
-                  </td>
-                  <td className="px-6 py-4 font-medium text-gray-700">
-                    {group.balance}
-                  </td>
+                  <td className="px-6 py-4 text-gray-600">{loan.productName ?? '—'}</td>
+                  <td className="px-6 py-4 text-gray-600">{loan.branchName ?? branchName(loan.branchId)}</td>
+                  <td className="px-6 py-4 text-gray-600">{loan.memberCount}</td>
+                  <td className="px-6 py-4 font-medium text-gray-700">{formatNaira(loan.cumulativeAmountKobo)}</td>
+                  <td className="px-6 py-4 font-medium text-gray-700">{formatNaira(loan.outstandingBalanceKobo)}</td>
+                  <td className="px-6 py-4 text-gray-600">{formatDisplayDate(loan.raisedAt)}</td>
                   <td className="px-6 py-4">
-                    <StatusBadge status={group.status as any} />
+                    <StatusBadge status={LOAN_STATUS_BADGE[loan.status]} />
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/loan-manager/loans/${group.loanId}`);
-                    }}
-                    className="p-1.5 text-gray-400 hover:text-primary rounded-lg hover:bg-gray-100 transition-colors">
-                    
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/loan-manager/loans/${loan.id}`);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-primary rounded-lg hover:bg-gray-100 transition-colors">
                       <MoreVerticalIcon size={18} />
                     </button>
+                  </td>
+                </tr>
+              ))}
+              {!isLoading && !loadError && filteredLoans.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400 text-sm font-body">
+                    No group loans match your search.
+                  </td>
+                </tr>
+              )}
+              {isLoading && (
+                <tr>
+                  <td colSpan={9} className="px-6 py-12 text-center text-gray-400 text-sm font-body">
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2Icon size={16} className="animate-spin" /> Loading group loans...
+                    </span>
+                  </td>
+                </tr>
+              )}
+              {!isLoading && loadError && (
+                <tr>
+                  <td colSpan={9} className="px-6 py-12 text-center text-red-500 text-sm font-body">
+                    {loadError}
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-          <span>Showing 1 to 7 of 42 entries</span>
-          <div className="flex gap-1">
-            <button className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50">
-              Prev
-            </button>
-            <button className="px-3 py-1 bg-primary text-white rounded">
-              1
-            </button>
-            <button className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">
-              2
-            </button>
-            <button className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">
-              3
-            </button>
-            <button className="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50">
-              Next
-            </button>
-          </div>
-        </div>
       </div>
-    </div>);
-
+    </div>
+  );
 }

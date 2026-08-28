@@ -18,6 +18,10 @@ interface ConfirmationModalProps {
     value: string;
   }[];
   requireInput?: boolean;
+  /** Greys out the confirm button and blocks `onConfirm` regardless of input — e.g. the signed-in staff member isn't allowed to take this action at all. Pair with `disabledReason` to explain why. */
+  confirmDisabled?: boolean;
+  /** Shown under the buttons only while `confirmDisabled` is true. */
+  disabledReason?: string;
 }
 const variantClasses: Record<string, string> = {
   primary: 'bg-primary text-white hover:bg-primary/90',
@@ -38,10 +42,13 @@ export function ConfirmationModal({
   inputLabel,
   inputPlaceholder,
   selectOptions,
-  requireInput = false
+  requireInput = false,
+  confirmDisabled = false,
+  disabledReason
 }: ConfirmationModalProps) {
   const [inputValue, setInputValue] = useState('');
   function handleConfirm() {
+    if (confirmDisabled) return;
     if (requireInput && !inputValue.trim()) return;
     onConfirm(inputValue || undefined);
     setInputValue('');
@@ -173,17 +180,21 @@ export function ConfirmationModal({
               <button
               onClick={handleClose}
               className="px-4 py-2 text-sm font-heading font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-              
+
                 Cancel
               </button>
               <button
               onClick={handleConfirm}
-              disabled={requireInput && !inputValue.trim()}
-              className={`px-4 py-2 text-sm font-heading font-bold rounded-lg transition-colors ${variantClasses[confirmVariant]} ${requireInput && !inputValue.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}>
-              
+              disabled={confirmDisabled || (requireInput && !inputValue.trim())}
+              className={`px-4 py-2 text-sm font-heading font-bold rounded-lg transition-colors ${variantClasses[confirmVariant]} ${confirmDisabled || (requireInput && !inputValue.trim()) ? 'opacity-50 cursor-not-allowed' : ''}`}>
+
                 {confirmLabel}
               </button>
             </div>
+
+            {confirmDisabled && disabledReason &&
+          <p className="text-xs text-amber-600 text-right mt-2">{disabledReason}</p>
+          }
           </motion.div>
         </motion.div>
       }

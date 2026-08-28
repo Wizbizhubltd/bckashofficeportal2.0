@@ -1,33 +1,25 @@
 import * as Yup from 'yup';
 
+// Branch has no city/state fields on the real backend (see backashbackend's
+// Branch schema — name/code/address/phone/email/active); the modal these
+// back only ever collects what CreateBranchDto/UpdateBranchDto actually
+// accept. Only UpdateBranchDto accepts phone/email today — set on an
+// existing branch via Edit, not at creation time.
 export const createBranchSchema = Yup.object({
   name: Yup.string().trim().required('Branch name is required'),
   code: Yup.string().trim().required('Branch code is required'),
-  state: Yup.string().trim().required('State is required'),
-  city: Yup.string().trim().required('LGA is required'),
   address: Yup.string().trim().required('Address is required'),
-  phone: Yup.string()
-    .trim()
-    .optional()
-    .test('empty-or-numeric-phone', 'Phone number must be 7-15 digits', (value) => !value || /^\d{7,15}$/.test(value)),
-  email: Yup.string().trim().email('Enter a valid email address').optional(),
-  managerId: Yup.string()
-    .trim()
-    .optional()
-    .test('empty-or-objectid', 'Manager ID must be a valid ObjectId', (value) => !value || /^[a-f\d]{24}$/i.test(value)),
 });
 
 export const editBranchSchema = Yup.object({
   name: Yup.string().trim().required('Branch name is required'),
   code: Yup.string().trim().required('Branch code is required'),
-  state: Yup.string().trim().required('State is required'),
-  city: Yup.string().trim().required('LGA is required'),
   address: Yup.string().trim().required('Address is required'),
   phone: Yup.string()
     .trim()
     .optional()
-    .test('empty-or-numeric-phone', 'Phone number must be 7-15 digits', (value) => !value || /^\d{7,15}$/.test(value)),
-  email: Yup.string().trim().email('Enter a valid email address').optional(),
+    .test('empty-or-11-digits', 'Phone number must be exactly 11 digits', (value) => !value || /^\d{11}$/.test(value)),
+  email: Yup.string().trim().email('Enter a valid email').optional(),
   managerId: Yup.string()
     .trim()
     .optional()
@@ -35,19 +27,23 @@ export const editBranchSchema = Yup.object({
   status: Yup.string().oneOf(['Active', 'Inactive']).required('Status is required'),
 });
 
+// Matches RecordBranchFundingDto exactly — bankAccountId must be the
+// branch's currently-*active* account (the modal doesn't offer a picker;
+// it's read-only, resolved from the branch's own active account, since
+// there's at most one). No separate "note" field (folded into the one
+// optional `reference` field the real API has).
 export const fundBranchSchema = Yup.object({
+  bankAccountId: Yup.string()
+    .trim()
+    .required('The branch needs an active bank account before it can be funded'),
   amount: Yup.string()
     .required('Amount is required')
     .test('valid-amount', 'Enter a valid amount', (value) => {
       const parsed = Number((value || '').replace(/,/g, ''));
       return Number.isFinite(parsed) && parsed > 0;
     }),
-  bankAccountId: Yup.string()
-    .trim()
-    .required('Destination bank is required')
-    .test('objectid', 'Select a valid bank account', (value) => !!value && /^[a-f\d]{24}$/i.test(value)),
-  transactionReference: Yup.string().trim().required('Transaction reference is required'),
-  note: Yup.string(),
+  fundedAt: Yup.string().required('Funded date is required'),
+  reference: Yup.string().trim().max(120, 'Reference must be 120 characters or fewer'),
 });
 
 export const addBankAccountSchema = Yup.object({
@@ -56,37 +52,19 @@ export const addBankAccountSchema = Yup.object({
     .matches(/^\d{10}$/, 'Account number must be 10 digits')
     .required('Account number is required'),
   accountName: Yup.string().trim().required('Account name is required'),
+  purpose: Yup.string()
+    .oneOf(['REPAYMENT_COLLECTION', 'DISBURSEMENT_SOURCE', 'GENERAL'], 'Select a valid purpose')
+    .required('Purpose is required'),
   isCurrent: Yup.boolean().required(),
-});
-
-export const loanProductSchema = Yup.object({
-  name: Yup.string().trim().required('Product name is required'),
-  duration: Yup.string().required('Duration is required'),
-  interestRate: Yup.number().typeError('Enter a valid interest rate').moreThan(0).required('Interest rate is required'),
-  minAmount: Yup.number().typeError('Enter a valid minimum amount').moreThan(0).required('Minimum amount is required'),
-  maxAmount: Yup.number()
-    .typeError('Enter a valid maximum amount')
-    .moreThan(Yup.ref('minAmount'), 'Maximum must be greater than minimum')
-    .required('Maximum amount is required'),
-});
-
-export const feeSchema = Yup.object({
-  name: Yup.string().trim().required('Fee name is required'),
-  billingType: Yup.string().oneOf(['Fixed', 'Percentage']).required('Billing type is required'),
-  amount: Yup.number().typeError('Enter a valid amount').moreThan(0).required('Amount is required'),
-  description: Yup.string(),
-  appliesTo: Yup.string().required('Applies-to selection is required'),
 });
 
 export const departmentSchema = Yup.object({
   name: Yup.string().trim().required('Department name is required'),
-  description: Yup.string(),
 });
 
 export const roleSchema = Yup.object({
   name: Yup.string().trim().required('Role name is required'),
   department: Yup.string().required('Department is required'),
-  description: Yup.string(),
 });
 
 export const expenseSchema = Yup.object({

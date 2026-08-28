@@ -6,7 +6,7 @@ import {
   LogOutIcon,
   SettingsIcon,
 } from 'lucide-react';
-import { clearRootAdminSession, getRootAdminToken } from '../../services/root-admin.service';
+import { clearRootAdminSession, getRootAdminToken } from '../../services/root-admin/root-admin.service';
 
 export function RootAdminLayout() {
   const navigate = useNavigate();

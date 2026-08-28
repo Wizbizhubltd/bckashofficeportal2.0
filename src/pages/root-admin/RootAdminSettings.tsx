@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ROOT_ADMIN_OPERATION_KEY_STORAGE,
   clearRootAdminSession,
-} from '../../services/root-admin.service';
+} from '../../services/root-admin/root-admin.service';
 
 export function RootAdminSettings() {
   const navigate = useNavigate();

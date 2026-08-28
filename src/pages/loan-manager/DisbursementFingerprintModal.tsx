@@ -12,7 +12,7 @@ interface DisbursementFingerprintModalProps {
   onClose: () => void;
   borrowerName: string;
   borrowerId: string;
-  onVerified: (borrowerId: string) => void;
+  onVerified: (borrowerId: string) => Promise<void> | void;
 }
 export function DisbursementFingerprintModal({
   isOpen,
@@ -40,8 +40,8 @@ export function DisbursementFingerprintModal({
   function handleStartScan() {
     setStep('scanning');
   }
-  function handleDone() {
-    onVerified(borrowerId);
+  async function handleDone() {
+    await onVerified(borrowerId);
     onClose();
   }
   if (!isOpen) return null;
@@ -92,7 +92,7 @@ export function DisbursementFingerprintModal({
                 </div>
                 <div>
                   <h3 className="text-base font-heading font-bold text-gray-900">
-                    Verify Fingerprint
+                    Verify Facial Capture
                   </h3>
                   <p className="text-xs font-body text-gray-500">
                     Pre-disbursement biometric check
@@ -122,8 +122,8 @@ export function DisbursementFingerprintModal({
                       {borrowerId}
                     </p>
                     <p className="text-sm font-body text-gray-500 mt-2">
-                      Place the borrower's finger on the scanner to verify their
-                      identity before loan disbursement.
+                      Ask the borrower to face the camera to verify identity
+                      before loan disbursement.
                     </p>
                   </div>
                   <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-left">
@@ -133,8 +133,8 @@ export function DisbursementFingerprintModal({
                     className="text-amber-600 mt-0.5 flex-shrink-0" />
                   
                       <p className="text-xs font-body text-amber-700">
-                        The fingerprint will be matched against the stored
-                        biometric data captured during customer onboarding.
+                        The face will be matched against the stored biometric
+                        data captured during customer onboarding.
                       </p>
                     </div>
                   </div>
@@ -143,7 +143,7 @@ export function DisbursementFingerprintModal({
                 className="w-full px-5 py-3 bg-accent text-white text-sm font-heading font-bold rounded-lg hover:bg-accent/90 transition-colors flex items-center justify-center gap-2">
                 
                     <FingerprintIcon size={18} />
-                    Start Fingerprint Scan
+                    Start Facial Scan
                   </button>
                 </div>
             }
@@ -193,10 +193,10 @@ export function DisbursementFingerprintModal({
                   </div>
                   <div>
                     <h4 className="text-base font-heading font-bold text-gray-900">
-                      Scanning Fingerprint...
+                      Capturing Face...
                     </h4>
                     <p className="text-sm font-body text-gray-500 mt-1">
-                      Keep the finger steady on the scanner.
+                      Keep the face centered in the frame.
                     </p>
                   </div>
                   <motion.div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -232,10 +232,10 @@ export function DisbursementFingerprintModal({
               
                   <div>
                     <h4 className="text-base font-heading font-bold text-gray-900">
-                      Matching Fingerprint...
+                      Matching Face...
                     </h4>
                     <p className="text-sm font-body text-gray-500 mt-1">
-                      Comparing against stored biometric data.
+                      Comparing against stored facial data.
                     </p>
                   </div>
                 </div>
@@ -264,7 +264,7 @@ export function DisbursementFingerprintModal({
                       Identity Verified
                     </h4>
                     <p className="text-sm font-body text-gray-500 mt-1">
-                      {borrowerName}'s fingerprint matches the stored record.
+                      {borrowerName}'s face matches the stored record.
                     </p>
                   </div>
                   <div className="bg-green-50 border border-green-100 rounded-lg p-3">
@@ -302,8 +302,7 @@ export function DisbursementFingerprintModal({
                       Verification Failed
                     </h4>
                     <p className="text-sm font-body text-gray-500 mt-1">
-                      Fingerprint does not match stored record. Please try
-                      again.
+                      Face does not match stored record. Please try again.
                     </p>
                   </div>
                   <button

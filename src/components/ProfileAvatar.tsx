@@ -28,7 +28,8 @@ function hashSeed(seed: string): number {
   return Math.abs(hash);
 }
 
-function resolveAvatarUrl(value: string): string {
+/** Exported for anything else that needs to turn a relative `/uploads/...` path (see backend's `toPublicUploadUrl`) into an absolute URL — e.g. StaffDetail's "View ID Document" link. */
+export function resolveUploadUrl(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) {
     return '';
@@ -69,7 +70,7 @@ export function ProfileAvatar({
     setImageFailed(false);
   }, [src]);
 
-  const normalizedSrc = typeof src === 'string' ? resolveAvatarUrl(src) : '';
+  const normalizedSrc = typeof src === 'string' ? resolveUploadUrl(src) : '';
   const hasImage = normalizedSrc.length > 0 && !imageFailed;
 
   const gradientClass = useMemo(() => {

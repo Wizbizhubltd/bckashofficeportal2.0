@@ -1,7 +1,7 @@
 import { FormEvent, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { AlertCircleIcon, EyeIcon, EyeOffIcon, LoaderIcon } from 'lucide-react';
-import { ROOT_ADMIN_TOKEN_KEY, getRootAdminToken, rootAdminService } from '../../services/root-admin.service';
+import { ROOT_ADMIN_TOKEN_KEY, getRootAdminToken, rootAdminService } from '../../services/root-admin/root-admin.service';
 
 export function RootAdminLogin() {
   const navigate = useNavigate();

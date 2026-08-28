@@ -3,24 +3,29 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   BuildingIcon,
   BanknoteIcon,
-  AlertTriangleIcon,
   GitBranchIcon,
   ShieldCheckIcon,
   BellIcon,
   SaveIcon,
   PencilIcon,
-  InfoIcon,
   SettingsIcon,
   UsersIcon,
   PackageIcon,
   ReceiptIcon,
+  ShieldIcon,
   XIcon } from
 'lucide-react';
-import { api } from '../app/api';
+import toast from 'react-hot-toast';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 import { useAuth } from '../context/AuthContext';
+import { organisationService, type Organisation } from '../services/organisation/organisation.service';
 import { DepartmentsRoles } from './settings/DepartmentsRoles';
 import { LoanProductsCrud } from './settings/LoanProductsCrud';
 import { FeeConfiguration } from './settings/FeeConfiguration';
+import { LoanConfigurationPanel } from './settings/LoanConfigurationPanel';
+import { RepaymentPenaltyPanel } from './settings/RepaymentPenaltyPanel';
+import { BranchRulesPanel } from './settings/BranchRulesPanel';
+import { RbacManagement } from './settings/RbacManagement';
 // ─── Shared Helpers ─────────────────────────────────────────────
 function Toggle({
   enabled,
@@ -86,6 +91,7 @@ function InputField({
 type TabKey =
 'organisation' |
 'departments' |
+'rbac' |
 'loan-products' |
 'fees' |
 'loan-rules' |
@@ -106,6 +112,11 @@ const settingsTabs: {
   key: 'departments',
   label: 'Departments & Roles',
   icon: <UsersIcon size={18} />
+},
+{
+  key: 'rbac',
+  label: 'RBAC',
+  icon: <ShieldIcon size={18} />
 },
 {
   key: 'loan-products',
@@ -138,139 +149,66 @@ const settingsTabs: {
   icon: <BellIcon size={18} />
 }];
 
-type OrganizationProfile = {
-  bankName: string;
+type OrgFormValues = {
+  nameOfOrg: string;
   address: string;
-  rcNumber: string;
-  cbnLicense: string;
+  phoneNumbers: string[];
+  organisationAccountDetails: { bankName: string; accountNumber: string; accountName: string }[];
+  briefHistory: string;
+  businessRegNumber: string;
+  cbnLicenseNumber: string;
   contactEmail: string;
-  contactPhone: string;
 };
 
-type SettingsActivity = {
-  id: string;
-  action: string;
-  entityType: string;
-  actorName: string;
-  createdAt: string;
+const EMPTY_ORG_FORM: OrgFormValues = {
+  nameOfOrg: '',
+  address: '',
+  phoneNumbers: [''],
+  organisationAccountDetails: [{ bankName: '', accountNumber: '', accountName: '' }],
+  briefHistory: '',
+  businessRegNumber: '',
+  cbnLicenseNumber: '',
+  contactEmail: '',
 };
 
-function extractSettingsActivity(response: unknown): SettingsActivity | null {
-  if (!response || typeof response !== 'object') {
-    return null;
-  }
-
-  const source = response as { data?: unknown; payload?: unknown };
-  const container =
-    source.data && typeof source.data === 'object'
-      ? source.data
-      : source.payload && typeof source.payload === 'object'
-      ? source.payload
-      : null;
-
-  if (!container || typeof container !== 'object') {
-    return null;
-  }
-
-  const row = container as Record<string, unknown>;
-  const id = row.id ?? row._id;
-  const action = row.action;
-  const actorName = row.actorName;
-  const createdAt = row.createdAt;
-
-  if (
-    (typeof id !== 'string' && typeof id !== 'number') ||
-    typeof action !== 'string' ||
-    typeof actorName !== 'string' ||
-    typeof createdAt !== 'string'
-  ) {
-    return null;
-  }
-
+function toOrgFormValues(org: Organisation): OrgFormValues {
   return {
-    id: String(id),
-    action,
-    entityType: typeof row.entityType === 'string' ? row.entityType : 'settings',
-    actorName,
-    createdAt,
-  };
-}
-
-function formatActivityAction(action: string): string {
-  const readable = action
-    .replace(/[._-]+/g, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
-
-  if (!readable) {
-    return 'updated settings';
-  }
-
-  return readable.charAt(0).toUpperCase() + readable.slice(1);
-}
-
-function formatActivityDate(isoDate: string): string {
-  const parsedDate = new Date(isoDate);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return isoDate;
-  }
-
-  return parsedDate.toLocaleString('en-NG', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function extractOrganizationProfilePayload(response: unknown): Partial<OrganizationProfile> {
-  if (!response || typeof response !== 'object') {
-    return {};
-  }
-
-  const source = response as { data?: unknown; payload?: unknown };
-  const container =
-    source.data && typeof source.data === 'object'
-      ? source.data
-      : source.payload && typeof source.payload === 'object'
-      ? source.payload
-      : source;
-
-  if (!container || typeof container !== 'object') {
-    return {};
-  }
-
-  const row = container as Record<string, unknown>;
-  return {
-    bankName: typeof row.bankName === 'string' ? row.bankName : typeof row.name === 'string' ? row.name : undefined,
-    address: typeof row.address === 'string' ? row.address : undefined,
-    rcNumber:
-      typeof row.rcNumber === 'string'
-        ? row.rcNumber
-        : typeof row.companyRegistrationNumber === 'string'
-        ? row.companyRegistrationNumber
-        : undefined,
-    cbnLicense: typeof row.cbnLicense === 'string' ? row.cbnLicense : undefined,
-    contactEmail:
-      typeof row.contactEmail === 'string'
-        ? row.contactEmail
-        : typeof row.email === 'string'
-        ? row.email
-        : undefined,
-    contactPhone:
-      typeof row.contactPhone === 'string'
-        ? row.contactPhone
-        : typeof row.phone === 'string'
-        ? row.phone
-        : undefined,
+    nameOfOrg: org.nameOfOrg,
+    address: org.address,
+    phoneNumbers: org.phoneNumbers.length > 0 ? [...org.phoneNumbers] : [''],
+    organisationAccountDetails:
+      org.organisationAccountDetails.length > 0
+        ? org.organisationAccountDetails.map((detail) => ({ ...detail }))
+        : [{ bankName: '', accountNumber: '', accountName: '' }],
+    briefHistory: org.briefHistory,
+    businessRegNumber: org.businessRegNumber,
+    cbnLicenseNumber: org.cbnLicenseNumber ?? '',
+    contactEmail: org.contactEmail ?? '',
   };
 }
 
 // ─── Main Component ─────────────────────────────────────────────
 export function Settings() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabKey>('organisation');
+  // Approver only holds approveCapability — they can't manage Organisation/
+  // Departments/KYC/Notifications, but they DO need to reach every tab
+  // backed by a workflow-mediated entity they can approve: LOAN_PRODUCT,
+  // FEE_DEFINITION, and (as of platform-config) LOAN_CONFIG/
+  // REPAYMENT_PENALTY_CONFIG/BRANCH_RULES_CONFIG — see App.tsx's
+  // SETTINGS_ROLES, which is why an Approver reaches this page at all.
+  const isApproverOnly = user?.role === 'approver';
+  const APPROVER_VISIBLE_TABS: readonly TabKey[] = ['loan-products', 'fees', 'loan-rules', 'branch-rules'];
+  // RBAC tab: every route under it requires the `rbac:manage` capability,
+  // which only SUPERADMIN holds in the default seed (see
+  // default-role-capabilities.ts) — hidden from everyone else rather than
+  // shown and then 403ing on every action.
+  const isSuperAdmin = user?.role === 'super_admin';
+  const visibleSettingsTabs = (isApproverOnly
+    ? settingsTabs.filter((tab) => APPROVER_VISIBLE_TABS.includes(tab.key))
+    : settingsTabs
+  ).filter((tab) => tab.key !== 'rbac' || isSuperAdmin);
+
+  const [activeTab, setActiveTab] = useState<TabKey>(isApproverOnly ? 'loan-products' : 'organisation');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [isSavingOrgProfile, setIsSavingOrgProfile] = useState(false);
@@ -278,46 +216,20 @@ export function Settings() {
     type: 'success' | 'error';
     message: string;
   } | null>(null);
-  const [latestSettingsActivity, setLatestSettingsActivity] = useState<SettingsActivity | null>(null);
-  const [isLoadingSettingsActivity, setIsLoadingSettingsActivity] = useState(false);
-  const organizationIdFromUser =
-    typeof user?.organizationId === 'string' && user.organizationId.trim().length > 0
-      ? user.organizationId.trim()
-      : null;
-  // Organisation Profile
-  const [orgProfile, setOrgProfile] = useState({
-    bankName: 'BCKash Microfinance Bank',
-    address: '15 Broad Street, Lagos Island, Lagos, Nigeria',
-    rcNumber: 'RC-1847293',
-    cbnLicense: 'MFB/2019/0234',
-    contactEmail: 'info@bckashmfb.com.ng',
-    contactPhone: '+234 801 234 5678'
-  });
-  // Loan Configuration
-  const [loanConfig, setLoanConfig] = useState({
-    interestRate: '24',
-    maxLoanAmount: '5000000',
-    minLoanAmount: '50000',
-    maxTenure: '24',
-    gracePeriod: '7',
-    maxGroupSize: '15',
-    minGroupSize: '5'
-  });
-  // Repayment & Penalties
-  const [repayment, setRepayment] = useState({
-    penaltyRate: '2.5',
-    penaltyGracePeriod: '3',
-    maxPenaltyCap: '25',
-    autoPenalty: true,
-    repaymentFrequency: 'Monthly'
-  });
-  // Branch Rules
-  const [branchRules, setBranchRules] = useState({
-    maxActiveBranches: '20',
-    defaultFundLimit: '50000000',
-    requireManagerApproval: true,
-    autoDisbursementLimit: '500000'
-  });
+  // Organisation Profile — a real platform-level singleton (see
+  // services/organisation), not a mock. 404 ("missing") is an expected,
+  // routine state before anyone has set it up, not an error.
+  const [organisation, setOrganisation] = useState<Organisation | null>(null);
+  const [orgStatus, setOrgStatus] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading');
+  const [isCreatingOrg, setIsCreatingOrg] = useState(false);
+  const [isDeletingOrg, setIsDeletingOrg] = useState(false);
+  const [deleteOrgConfirmOpen, setDeleteOrgConfirmOpen] = useState(false);
+  const [orgForm, setOrgForm] = useState<OrgFormValues>(EMPTY_ORG_FORM);
+  // Loan Configuration / Repayment & Penalties / Branch Rules are real,
+  // workflow-mediated, versioned records now (see modules/platform-config on
+  // the backend) — LoanConfigurationPanel/RepaymentPenaltyPanel/
+  // BranchRulesPanel below own their own state entirely, no local mock state
+  // left here for them.
   // KYC & Verification
   const [kyc, setKyc] = useState({
     bvnRequired: true,
@@ -340,70 +252,42 @@ export function Settings() {
   useEffect(() => {
     let isMounted = true;
 
-    const loadOrganizationProfile = async () => {
+    const loadOrganisation = async () => {
+      setOrgStatus('loading');
       try {
-        const response = await api.get('/admin/organization-profile');
-        const profile = extractOrganizationProfilePayload(response);
+        const org = await organisationService.get();
         if (!isMounted) {
           return;
         }
-
-        setOrgProfile((current) => ({
-          bankName: profile.bankName ?? current.bankName,
-          address: profile.address ?? current.address,
-          rcNumber: profile.rcNumber ?? current.rcNumber,
-          cbnLicense: profile.cbnLicense ?? current.cbnLicense,
-          contactEmail: profile.contactEmail ?? current.contactEmail,
-          contactPhone: profile.contactPhone ?? current.contactPhone,
-        }));
-      } catch {
-        if (isMounted) {
-          setOrgProfileBanner({
-            type: 'error',
-            message: 'Unable to load organization profile from backend.',
-          });
+        setOrganisation(org);
+        setOrgStatus('ready');
+      } catch (error) {
+        if (!isMounted) {
+          return;
         }
+        // A 404 here means "nobody has set this up yet" — an expected,
+        // routine state (see organisationService.get's own doc comment),
+        // not a load failure worth an error banner.
+        if ((error as { status?: number })?.status === 404) {
+          setOrganisation(null);
+          setOrgStatus('missing');
+          return;
+        }
+        setOrgStatus('error');
+        setOrgProfileBanner({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Unable to load the organisation profile.',
+        });
       }
     };
 
-    void loadOrganizationProfile();
+    void loadOrganisation();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const loadLatestSettingsActivity = async () => {
-      try {
-        setIsLoadingSettingsActivity(true);
-        const response = await api.get('/admin/settings/activity/latest');
-        const activity = extractSettingsActivity(response);
-
-        if (!isMounted) {
-          return;
-        }
-
-        setLatestSettingsActivity(activity);
-      } catch {
-        if (isMounted) {
-          setLatestSettingsActivity(null);
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoadingSettingsActivity(false);
-        }
-      }
-    };
-
-    void loadLatestSettingsActivity();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [activeTab]);
 
   useEffect(() => {
     if (!orgProfileBanner || orgProfileBanner.type !== 'success') {
@@ -419,532 +303,498 @@ export function Settings() {
     };
   }, [orgProfileBanner]);
 
-  const handleSaveOrganisationProfile = async () => {
-    if (!organizationIdFromUser) {
+  /**
+   * Shared by create and update — validates + normalizes the form, returns
+   * `null` (and sets an error banner) if it's incomplete rather than
+   * letting the backend's 400 be the first the operator hears of it.
+   */
+  const buildOrganisationPayload = () => {
+    const nameOfOrg = orgForm.nameOfOrg.trim();
+    const address = orgForm.address.trim();
+    const businessRegNumber = orgForm.businessRegNumber.trim();
+    const briefHistory = orgForm.briefHistory.trim();
+    const phoneNumbers = orgForm.phoneNumbers.map((phone) => phone.trim()).filter(Boolean);
+    const organisationAccountDetails = orgForm.organisationAccountDetails
+      .map((detail) => ({
+        bankName: detail.bankName.trim(),
+        accountNumber: detail.accountNumber.trim(),
+        accountName: detail.accountName.trim(),
+      }))
+      .filter((detail) => detail.bankName || detail.accountNumber || detail.accountName);
+
+    if (!nameOfOrg || !address || !businessRegNumber || !briefHistory) {
       setOrgProfileBanner({
         type: 'error',
-        message: 'Organization ID is missing from your session. Please sign in again.',
+        message: 'Organisation name, address, RC number and brief history are required.',
       });
-      return;
+      return null;
     }
-
+    if (phoneNumbers.length === 0) {
+      setOrgProfileBanner({ type: 'error', message: 'At least one phone number is required.' });
+      return null;
+    }
     if (
-      !orgProfile.bankName.trim() ||
-      !orgProfile.address.trim() ||
-      !orgProfile.rcNumber.trim()
+      organisationAccountDetails.length === 0 ||
+      organisationAccountDetails.some((detail) => !detail.bankName || !detail.accountNumber || !detail.accountName)
     ) {
       setOrgProfileBanner({
         type: 'error',
-        message: 'Bank name, address and RC number are required.',
+        message: 'At least one complete bank account (bank name, account number, account name) is required.',
       });
-      return;
+      return null;
     }
+
+    return {
+      nameOfOrg,
+      address,
+      phoneNumbers,
+      organisationAccountDetails,
+      briefHistory,
+      businessRegNumber,
+      cbnLicenseNumber: orgForm.cbnLicenseNumber.trim() || undefined,
+      contactEmail: orgForm.contactEmail.trim() || undefined,
+    };
+  };
+
+  const startOrganisationSetup = () => {
+    setOrgForm(EMPTY_ORG_FORM);
+    setOrgProfileBanner(null);
+    setIsCreatingOrg(true);
+  };
+
+  const startEditingOrganisation = () => {
+    if (!organisation) return;
+    setOrgForm(toOrgFormValues(organisation));
+    setOrgProfileBanner(null);
+    setEditingProfile(true);
+  };
+
+  const handleCreateOrganisation = async () => {
+    const payload = buildOrganisationPayload();
+    if (!payload) return;
 
     try {
       setIsSavingOrgProfile(true);
       setOrgProfileBanner(null);
-
-      const response = await api.patch('/admin/organization-profile', {
-        bankName: orgProfile.bankName.trim(),
-        address: orgProfile.address.trim(),
-        rcNumber: orgProfile.rcNumber.trim(),
-        cbnLicense: orgProfile.cbnLicense.trim(),
-        contactEmail: orgProfile.contactEmail.trim() || undefined,
-        contactPhone: orgProfile.contactPhone.trim() || undefined,
-      });
-
-      const profile = extractOrganizationProfilePayload(response);
-      setOrgProfile((current) => ({
-        bankName: profile.bankName ?? current.bankName,
-        address: profile.address ?? current.address,
-        rcNumber: profile.rcNumber ?? current.rcNumber,
-        cbnLicense: profile.cbnLicense ?? current.cbnLicense,
-        contactEmail: profile.contactEmail ?? current.contactEmail,
-        contactPhone: profile.contactPhone ?? current.contactPhone,
-      }));
-
-      setEditingProfile(false);
-      setOrgProfileBanner({
-        type: 'success',
-        message: 'Organization profile updated successfully.',
-      });
-
-      try {
-        const activityResponse = await api.get('/admin/settings/activity/latest');
-        setLatestSettingsActivity(extractSettingsActivity(activityResponse));
-      } catch {}
+      const created = await organisationService.create(payload);
+      setOrganisation(created);
+      setOrgStatus('ready');
+      setIsCreatingOrg(false);
+      setOrgProfileBanner({ type: 'success', message: 'Organisation profile created successfully.' });
     } catch (error) {
-      const message = error instanceof Error && error.message ? error.message : 'Failed to update organization profile';
       setOrgProfileBanner({
         type: 'error',
-        message,
+        message: error instanceof Error ? error.message : 'Failed to create organisation profile',
       });
     } finally {
       setIsSavingOrgProfile(false);
     }
   };
+
+  const handleSaveOrganisationProfile = async () => {
+    const payload = buildOrganisationPayload();
+    if (!payload) return;
+
+    try {
+      setIsSavingOrgProfile(true);
+      setOrgProfileBanner(null);
+      const updated = await organisationService.update(payload);
+      setOrganisation(updated);
+      setEditingProfile(false);
+      setOrgProfileBanner({ type: 'success', message: 'Organisation profile updated successfully.' });
+    } catch (error) {
+      setOrgProfileBanner({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to update organisation profile',
+      });
+    } finally {
+      setIsSavingOrgProfile(false);
+    }
+  };
+
+  const handleDeleteOrganisation = async () => {
+    try {
+      setIsDeletingOrg(true);
+      await organisationService.remove();
+      setOrganisation(null);
+      setOrgStatus('missing');
+      setEditingProfile(false);
+      setDeleteOrgConfirmOpen(false);
+      toast.success("Organisation profile deleted. Use \"Setup Organisation Details\" whenever you're ready.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete organisation profile');
+    } finally {
+      setIsDeletingOrg(false);
+    }
+  };
+
+  const updateOrgFormPhone = (index: number, value: string) =>
+    setOrgForm((form) => ({
+      ...form,
+      phoneNumbers: form.phoneNumbers.map((phone, i) => (i === index ? value : phone)),
+    }));
+  const addOrgFormPhone = () => setOrgForm((form) => ({ ...form, phoneNumbers: [...form.phoneNumbers, ''] }));
+  const removeOrgFormPhone = (index: number) =>
+    setOrgForm((form) => ({ ...form, phoneNumbers: form.phoneNumbers.filter((_, i) => i !== index) }));
+
+  const updateOrgFormAccount = (
+    index: number,
+    field: 'bankName' | 'accountNumber' | 'accountName',
+    value: string,
+  ) =>
+    setOrgForm((form) => ({
+      ...form,
+      organisationAccountDetails: form.organisationAccountDetails.map((detail, i) =>
+        i === index ? { ...detail, [field]: value } : detail,
+      ),
+    }));
+  const addOrgFormAccount = () =>
+    setOrgForm((form) => ({
+      ...form,
+      organisationAccountDetails: [...form.organisationAccountDetails, { bankName: '', accountNumber: '', accountName: '' }],
+    }));
+  const removeOrgFormAccount = (index: number) =>
+    setOrgForm((form) => ({
+      ...form,
+      organisationAccountDetails: form.organisationAccountDetails.filter((_, i) => i !== index),
+    }));
+
   function handleTabChange(key: TabKey) {
     setActiveTab(key);
     setMobileNavOpen(false);
   }
   // ─── Tab Content Renderers ──────────────────────────────────
+  function renderOrgFormFields() {
+    return (
+      <div className="space-y-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <InputField label="Organisation Name" value={orgForm.nameOfOrg} onChange={(v) => setOrgForm({ ...orgForm, nameOfOrg: v })} />
+          <InputField label="RC Number" value={orgForm.businessRegNumber} onChange={(v) => setOrgForm({ ...orgForm, businessRegNumber: v })} />
+          <InputField label="CBN License Number" value={orgForm.cbnLicenseNumber} onChange={(v) => setOrgForm({ ...orgForm, cbnLicenseNumber: v })} />
+          <InputField label="Contact Email" value={orgForm.contactEmail} onChange={(v) => setOrgForm({ ...orgForm, contactEmail: v })} type="email" />
+          <div className="md:col-span-2">
+            <InputField label="Address" value={orgForm.address} onChange={(v) => setOrgForm({ ...orgForm, address: v })} />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-body font-medium text-gray-600 mb-1.5">Brief History</label>
+          <textarea
+            value={orgForm.briefHistory}
+            onChange={(e) => setOrgForm({ ...orgForm, briefHistory: e.target.value })}
+            rows={3}
+            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-body text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+          />
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-body font-medium text-gray-600">Phone Numbers</label>
+            <button type="button" onClick={addOrgFormPhone} className="text-xs font-body text-primary hover:text-primary/80">
+              + Add phone number
+            </button>
+          </div>
+          <div className="space-y-2">
+            {orgForm.phoneNumbers.map((phone, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => updateOrgFormPhone(index, e.target.value)}
+                  placeholder="08000000000"
+                  className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm font-body text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                />
+                {orgForm.phoneNumbers.length > 1 && (
+                  <button type="button" onClick={() => removeOrgFormPhone(index)} className="text-gray-400 hover:text-red-500 p-1">
+                    <XIcon size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-body font-medium text-gray-600">Bank Accounts</label>
+            <button type="button" onClick={addOrgFormAccount} className="text-xs font-body text-primary hover:text-primary/80">
+              + Add bank account
+            </button>
+          </div>
+          <div className="space-y-3">
+            {orgForm.organisationAccountDetails.map((detail, index) => (
+              <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 rounded-lg border border-gray-100 bg-gray-50">
+                <input
+                  value={detail.bankName}
+                  onChange={(e) => updateOrgFormAccount(index, 'bankName', e.target.value)}
+                  placeholder="Bank name"
+                  className="flex-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-body text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                />
+                <input
+                  value={detail.accountNumber}
+                  onChange={(e) => updateOrgFormAccount(index, 'accountNumber', e.target.value)}
+                  placeholder="Account number"
+                  className="flex-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-body text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                />
+                <input
+                  value={detail.accountName}
+                  onChange={(e) => updateOrgFormAccount(index, 'accountName', e.target.value)}
+                  placeholder="Account name"
+                  className="flex-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-body text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                />
+                {orgForm.organisationAccountDetails.length > 1 && (
+                  <button type="button" onClick={() => removeOrgFormAccount(index)} className="text-gray-400 hover:text-red-500 p-1 flex-shrink-0">
+                    <XIcon size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   function renderOrganisation() {
+    const banner = orgProfileBanner && (
+      <div
+        className={`rounded-lg border px-4 py-3 text-sm ${orgProfileBanner.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}
+      >
+        {orgProfileBanner.message}
+      </div>
+    );
+
+    if (orgStatus === 'loading') {
+      return (
+        <div className="space-y-6">
+          {banner}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center text-sm text-gray-500">
+            Loading organisation profile...
+          </div>
+        </div>
+      );
+    }
+
+    if (orgStatus === 'error') {
+      return (
+        <div className="space-y-6">
+          {banner}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center">
+            <p className="text-sm text-gray-500 mb-3">Could not load the organisation profile.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-lg text-sm font-heading font-bold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (orgStatus === 'missing' && !isCreatingOrg) {
+      return (
+        <div className="space-y-6">
+          {banner}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-10 text-center flex flex-col items-center">
+            <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-4">
+              <BuildingIcon size={26} className="text-primary" />
+            </div>
+            <h3 className="text-lg font-heading font-bold text-gray-900 mb-1">No organisation profile yet</h3>
+            <p className="text-sm font-body text-gray-500 mb-5 max-w-md">
+              Set up the organisation's details — name, registration, contact info and bank accounts — before anything else on this page.
+            </p>
+            <button
+              onClick={startOrganisationSetup}
+              className="px-5 py-2.5 rounded-lg text-sm font-heading font-bold text-white bg-accent hover:bg-accent/90 transition-colors"
+            >
+              Setup Organisation Details
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    if (orgStatus === 'missing' && isCreatingOrg) {
+      return (
+        <div className="space-y-6">
+          {banner}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <BuildingIcon size={20} className="text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-heading font-bold text-gray-900">Setup Organisation Details</h3>
+                <p className="text-sm font-body text-gray-500 mt-0.5">This can only be done once — you can update or delete it afterward.</p>
+              </div>
+            </div>
+            <div className="px-6 py-5">
+              {renderOrgFormFields()}
+              <div className="pt-4 mt-4 border-t border-gray-100 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setIsCreatingOrg(false)}
+                  disabled={isSavingOrgProfile}
+                  className="px-4 py-2 rounded-lg text-sm font-heading font-bold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void handleCreateOrganisation()}
+                  disabled={isSavingOrgProfile}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-heading font-bold text-white bg-accent hover:bg-accent/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isSavingOrgProfile ? (
+                    'Creating...'
+                  ) : (
+                    <>
+                      <SaveIcon size={16} />
+                      Create Organisation
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (!organisation) {
+      return null;
+    }
+
     return (
       <div className="space-y-6">
-        {orgProfileBanner &&
-        <div
-          className={`rounded-lg border px-4 py-3 text-sm ${orgProfileBanner.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
-          
-            {orgProfileBanner.message}
-          </div>
-        }
+        {banner}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-6 py-5 border-b border-gray-100 flex items-start gap-3">
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
               <BuildingIcon size={20} className="text-primary" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-heading font-bold text-gray-900">
-                Organisation Profile
-              </h3>
-              <p className="text-sm font-body text-gray-500 mt-0.5">
-                Basic information about BCKash Microfinance Bank
-              </p>
+              <h3 className="text-lg font-heading font-bold text-gray-900">Organisation Profile</h3>
+              <p className="text-sm font-body text-gray-500 mt-0.5">Basic information about {organisation.nameOfOrg}</p>
             </div>
-            <button
-              onClick={() => setEditingProfile(!editingProfile)}
-              className="flex items-center gap-1.5 text-sm font-body text-primary hover:text-primary/80 transition-colors">
-              
-              <PencilIcon size={14} />
-              {editingProfile ? 'Cancel' : 'Edit'}
-            </button>
+            <div className="flex items-center gap-4">
+              {!editingProfile && (
+                <button
+                  onClick={() => setDeleteOrgConfirmOpen(true)}
+                  className="text-sm font-body text-red-500 hover:text-red-600 transition-colors"
+                >
+                  Delete
+                </button>
+              )}
+              <button
+                onClick={() => (editingProfile ? setEditingProfile(false) : startEditingOrganisation())}
+                className="flex items-center gap-1.5 text-sm font-body text-primary hover:text-primary/80 transition-colors"
+              >
+                <PencilIcon size={14} />
+                {editingProfile ? 'Cancel' : 'Edit'}
+              </button>
+            </div>
           </div>
           <div className="px-6 py-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {editingProfile ?
-              <>
-                  <InputField
-                  label="Bank Name"
-                  value={orgProfile.bankName}
-                  onChange={(v) =>
-                  setOrgProfile({
-                    ...orgProfile,
-                    bankName: v
-                  })
-                  } />
-                
-                  <InputField
-                  label="RC Number"
-                  value={orgProfile.rcNumber}
-                  onChange={(v) =>
-                  setOrgProfile({
-                    ...orgProfile,
-                    rcNumber: v
-                  })
-                  } />
-                
-                  <InputField
-                  label="CBN License Number"
-                  value={orgProfile.cbnLicense}
-                  onChange={(v) =>
-                  setOrgProfile({
-                    ...orgProfile,
-                    cbnLicense: v
-                  })
-                  } />
-                
-                  <InputField
-                  label="Contact Email"
-                  value={orgProfile.contactEmail}
-                  onChange={(v) =>
-                  setOrgProfile({
-                    ...orgProfile,
-                    contactEmail: v
-                  })
-                  } />
-                
-                  <InputField
-                  label="Contact Phone"
-                  value={orgProfile.contactPhone}
-                  onChange={(v) =>
-                  setOrgProfile({
-                    ...orgProfile,
-                    contactPhone: v
-                  })
-                  } />
-                
-                  <div className="md:col-span-2">
-                    <InputField
-                    label="Address"
-                    value={orgProfile.address}
-                    onChange={(v) =>
-                    setOrgProfile({
-                      ...orgProfile,
-                      address: v
-                    })
-                    } />
-                  
-                  </div>
-                </> :
-
-              <>
+            {editingProfile ? (
+              renderOrgFormFields()
+            ) : (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {[
-                {
-                  label: 'Bank Name',
-                  value: orgProfile.bankName
-                },
-                {
-                  label: 'RC Number',
-                  value: orgProfile.rcNumber
-                },
-                {
-                  label: 'CBN License',
-                  value: orgProfile.cbnLicense
-                },
-                {
-                  label: 'Contact Email',
-                  value: orgProfile.contactEmail
-                },
-                {
-                  label: 'Contact Phone',
-                  value: orgProfile.contactPhone
-                }].
-                map((item) =>
-                <div key={item.label}>
-                      <p className="text-xs text-gray-400 font-body mb-0.5">
-                        {item.label}
-                      </p>
-                      <p className="text-sm font-body font-medium text-gray-800">
-                        {item.value}
-                      </p>
+                    { label: 'Organisation Name', value: organisation.nameOfOrg },
+                    { label: 'RC Number', value: organisation.businessRegNumber },
+                    { label: 'CBN License', value: organisation.cbnLicenseNumber || '—' },
+                    { label: 'Contact Email', value: organisation.contactEmail || '—' },
+                  ].map((item) => (
+                    <div key={item.label}>
+                      <p className="text-xs text-gray-400 font-body mb-0.5">{item.label}</p>
+                      <p className="text-sm font-body font-medium text-gray-800">{item.value}</p>
                     </div>
-                )}
+                  ))}
                   <div className="md:col-span-2">
-                    <p className="text-xs text-gray-400 font-body mb-0.5">
-                      Address
-                    </p>
-                    <p className="text-sm font-body font-medium text-gray-800">
-                      {orgProfile.address}
-                    </p>
+                    <p className="text-xs text-gray-400 font-body mb-0.5">Address</p>
+                    <p className="text-sm font-body font-medium text-gray-800">{organisation.address}</p>
                   </div>
-                </>
-              }
-            </div>
-            {editingProfile &&
-            <div className="pt-4 mt-4 border-t border-gray-100 flex items-center justify-end gap-3">
-                
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-400 font-body mb-0.5">Brief History</p>
+                  <p className="text-sm font-body text-gray-700 whitespace-pre-wrap">{organisation.briefHistory}</p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-400 font-body mb-1.5">Phone Numbers</p>
+                  <div className="flex flex-wrap gap-2">
+                    {organisation.phoneNumbers.map((phone) => (
+                      <span key={phone} className="px-2.5 py-1 rounded-full text-xs font-body bg-gray-100 text-gray-700">
+                        {phone}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-gray-400 font-body mb-1.5">Bank Accounts</p>
+                  <div className="space-y-2">
+                    {organisation.organisationAccountDetails.map((detail, index) => (
+                      <div key={index} className="text-sm font-body text-gray-700 p-2.5 rounded-lg bg-gray-50">
+                        {detail.bankName} · {detail.accountNumber} · {detail.accountName}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {editingProfile && (
+              <div className="pt-4 mt-4 border-t border-gray-100 flex items-center justify-end gap-3">
                 <button
-                onClick={() => setEditingProfile(false)}
-                disabled={isSavingOrgProfile}
-                className="px-4 py-2 rounded-lg text-sm font-heading font-bold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
-                
+                  onClick={() => setEditingProfile(false)}
+                  disabled={isSavingOrgProfile}
+                  className="px-4 py-2 rounded-lg text-sm font-heading font-bold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
                   Cancel
                 </button>
                 <button
-                onClick={() => void handleSaveOrganisationProfile()}
-                disabled={isSavingOrgProfile}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-heading font-bold text-white bg-accent hover:bg-accent/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
-                
-                  {isSavingOrgProfile ?
-                'Saving...' :
-                <>
+                  onClick={() => void handleSaveOrganisationProfile()}
+                  disabled={isSavingOrgProfile}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-heading font-bold text-white bg-accent hover:bg-accent/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isSavingOrgProfile ? (
+                    'Saving...'
+                  ) : (
+                    <>
                       <SaveIcon size={16} />
                       Save Changes
                     </>
-                }
+                  )}
                 </button>
               </div>
-            }
+            )}
           </div>
         </div>
-      </div>);
 
+        <ConfirmationModal
+          isOpen={deleteOrgConfirmOpen}
+          onClose={() => setDeleteOrgConfirmOpen(false)}
+          onConfirm={() => void handleDeleteOrganisation()}
+          title="Delete the organisation profile?"
+          description="This is the only way to start over on the singleton profile — you'll need to set it up again from scratch, including bank accounts and phone numbers."
+          confirmLabel={isDeletingOrg ? 'Deleting...' : 'Delete'}
+          confirmVariant="danger"
+        />
+      </div>
+    );
   }
   function renderLoanRules() {
     return (
       <div className="space-y-6">
-        {/* Loan Configuration */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-100 flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <BanknoteIcon size={20} className="text-primary" />
-            </div>
-            <div>
-              <h3 className="text-lg font-heading font-bold text-gray-900">
-                Loan Configuration
-              </h3>
-              <p className="text-sm font-body text-gray-500 mt-0.5">
-                Set interest rates, loan limits, and group size rules
-              </p>
-            </div>
-          </div>
-          <div className="px-6 py-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <InputField
-                label="Interest Rate (per annum)"
-                value={loanConfig.interestRate}
-                onChange={(v) =>
-                setLoanConfig({
-                  ...loanConfig,
-                  interestRate: v
-                })
-                }
-                type="number"
-                suffix="%" />
-              
-              <InputField
-                label="Max Loan Amount"
-                value={loanConfig.maxLoanAmount}
-                onChange={(v) =>
-                setLoanConfig({
-                  ...loanConfig,
-                  maxLoanAmount: v
-                })
-                }
-                type="number"
-                prefix="₦" />
-              
-              <InputField
-                label="Min Loan Amount"
-                value={loanConfig.minLoanAmount}
-                onChange={(v) =>
-                setLoanConfig({
-                  ...loanConfig,
-                  minLoanAmount: v
-                })
-                }
-                type="number"
-                prefix="₦" />
-              
-              <InputField
-                label="Max Loan Tenure"
-                value={loanConfig.maxTenure}
-                onChange={(v) =>
-                setLoanConfig({
-                  ...loanConfig,
-                  maxTenure: v
-                })
-                }
-                type="number"
-                suffix="months" />
-              
-              <InputField
-                label="Grace Period"
-                value={loanConfig.gracePeriod}
-                onChange={(v) =>
-                setLoanConfig({
-                  ...loanConfig,
-                  gracePeriod: v
-                })
-                }
-                type="number"
-                suffix="days" />
-              
-              <InputField
-                label="Max Group Size"
-                value={loanConfig.maxGroupSize}
-                onChange={(v) =>
-                setLoanConfig({
-                  ...loanConfig,
-                  maxGroupSize: v
-                })
-                }
-                type="number" />
-              
-              <InputField
-                label="Min Group Size"
-                value={loanConfig.minGroupSize}
-                onChange={(v) =>
-                setLoanConfig({
-                  ...loanConfig,
-                  minGroupSize: v
-                })
-                }
-                type="number" />
-              
-            </div>
-          </div>
-        </div>
-
-        {/* Repayment & Penalties */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-100 flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <AlertTriangleIcon size={20} className="text-primary" />
-            </div>
-            <div>
-              <h3 className="text-lg font-heading font-bold text-gray-900">
-                Repayment & Penalties
-              </h3>
-              <p className="text-sm font-body text-gray-500 mt-0.5">
-                Configure late payment penalties and repayment schedules
-              </p>
-            </div>
-          </div>
-          <div className="px-6 py-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              <InputField
-                label="Late Payment Penalty Rate"
-                value={repayment.penaltyRate}
-                onChange={(v) =>
-                setRepayment({
-                  ...repayment,
-                  penaltyRate: v
-                })
-                }
-                type="number"
-                suffix="%" />
-              
-              <InputField
-                label="Penalty Grace Period"
-                value={repayment.penaltyGracePeriod}
-                onChange={(v) =>
-                setRepayment({
-                  ...repayment,
-                  penaltyGracePeriod: v
-                })
-                }
-                type="number"
-                suffix="days" />
-              
-              <InputField
-                label="Max Penalty Cap"
-                value={repayment.maxPenaltyCap}
-                onChange={(v) =>
-                setRepayment({
-                  ...repayment,
-                  maxPenaltyCap: v
-                })
-                }
-                type="number"
-                suffix="%" />
-              
-            </div>
-            <div className="space-y-4 border-t border-gray-100 pt-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-body font-medium text-gray-800">
-                    Auto-Penalty
-                  </p>
-                  <p className="text-xs text-gray-400 font-body">
-                    Automatically apply penalties after grace period
-                  </p>
-                </div>
-                <Toggle
-                  enabled={repayment.autoPenalty}
-                  onToggle={() =>
-                  setRepayment({
-                    ...repayment,
-                    autoPenalty: !repayment.autoPenalty
-                  })
-                  } />
-                
-              </div>
-              <div>
-                <label className="block text-sm font-body font-medium text-gray-600 mb-2">
-                  Repayment Frequency
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {['Weekly', 'Bi-weekly', 'Monthly'].map((freq) =>
-                  <button
-                    key={freq}
-                    onClick={() =>
-                    setRepayment({
-                      ...repayment,
-                      repaymentFrequency: freq
-                    })
-                    }
-                    className={`px-4 py-2 rounded-lg text-sm font-body border transition-colors ${repayment.repaymentFrequency === freq ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 border-gray-200 hover:border-primary/40'}`}>
-                    
-                      {freq}
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>);
-
+        <LoanConfigurationPanel />
+        <RepaymentPenaltyPanel />
+      </div>
+    );
   }
   function renderBranchRules() {
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100 flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <GitBranchIcon size={20} className="text-primary" />
-          </div>
-          <div>
-            <h3 className="text-lg font-heading font-bold text-gray-900">
-              Branch Rules
-            </h3>
-            <p className="text-sm font-body text-gray-500 mt-0.5">
-              Set limits and approval rules for branch operations
-            </p>
-          </div>
-        </div>
-        <div className="px-6 py-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <InputField
-              label="Max Active Branches"
-              value={branchRules.maxActiveBranches}
-              onChange={(v) =>
-              setBranchRules({
-                ...branchRules,
-                maxActiveBranches: v
-              })
-              }
-              type="number" />
-            
-            <InputField
-              label="Default Branch Fund Limit"
-              value={branchRules.defaultFundLimit}
-              onChange={(v) =>
-              setBranchRules({
-                ...branchRules,
-                defaultFundLimit: v
-              })
-              }
-              type="number"
-              prefix="₦" />
-            
-            <InputField
-              label="Auto-Disbursement Limit"
-              value={branchRules.autoDisbursementLimit}
-              onChange={(v) =>
-              setBranchRules({
-                ...branchRules,
-                autoDisbursementLimit: v
-              })
-              }
-              type="number"
-              prefix="₦" />
-            
-          </div>
-          <div className="border-t border-gray-100 pt-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-body font-medium text-gray-800">
-                  Require Branch Manager Approval
-                </p>
-                <p className="text-xs text-gray-400 font-body">
-                  All disbursements above auto-limit require manager sign-off
-                </p>
-              </div>
-              <Toggle
-                enabled={branchRules.requireManagerApproval}
-                onToggle={() =>
-                setBranchRules({
-                  ...branchRules,
-                  requireManagerApproval: !branchRules.requireManagerApproval
-                })
-                } />
-              
-            </div>
-          </div>
-        </div>
-      </div>);
-
+    return <BranchRulesPanel />;
   }
   function renderKyc() {
     return (
@@ -989,7 +839,7 @@ export function Settings() {
                   Biometric Capture Required
                 </p>
                 <p className="text-xs text-gray-400 font-body">
-                  Fingerprint capture during customer onboarding
+                  Facial capture during customer onboarding
                 </p>
               </div>
               <Toggle
@@ -1144,6 +994,7 @@ export function Settings() {
   const tabContent: Record<TabKey, React.ReactNode> = {
     organisation: renderOrganisation(),
     departments: <DepartmentsRoles />,
+    rbac: <RbacManagement />,
     'loan-products': <LoanProductsCrud />,
     fees: <FeeConfiguration />,
     'loan-rules': renderLoanRules(),
@@ -1161,7 +1012,7 @@ export function Settings() {
               Organisation Settings
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Configure rules and policies for BCKash MFB
+              Configure rules and policies for BCKash Cooperative
             </p>
           </div>
         </div>
@@ -1172,7 +1023,7 @@ export function Settings() {
           {/* Desktop Sidebar Nav */}
           <aside className="hidden lg:block w-56 flex-shrink-0">
             <nav className="sticky top-4 space-y-1">
-              {settingsTabs.map((tab) =>
+              {visibleSettingsTabs.map((tab) =>
               <button
                 key={tab.key}
                 onClick={() => handleTabChange(tab.key)}
@@ -1239,7 +1090,7 @@ export function Settings() {
                     Settings Sections
                   </p>
                   <nav className="space-y-1">
-                    {settingsTabs.map((tab) =>
+                    {visibleSettingsTabs.map((tab) =>
                   <button
                     key={tab.key}
                     onClick={() => handleTabChange(tab.key)}
@@ -1287,18 +1138,6 @@ export function Settings() {
                 {tabContent[activeTab]}
               </motion.div>
             </AnimatePresence>
-
-            {/* Footer Note */}
-            <div className="flex items-center gap-2 text-xs text-gray-400 font-body pt-6 pb-2">
-              <InfoIcon size={14} />
-              <span>
-                {isLoadingSettingsActivity
-                  ? 'Last updated: loading recent activity...'
-                  : latestSettingsActivity
-                  ? `Last updated: ${formatActivityDate(latestSettingsActivity.createdAt)} by ${latestSettingsActivity.actorName} — ${formatActivityAction(latestSettingsActivity.action)}`
-                  : 'Last updated: no settings activity has been recorded yet.'}
-              </span>
-            </div>
           </main>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 type StatusType =
 'Active' |
+'Draft' |
 'Pending' |
 'Pending Approval' |
 'Pending Review' |
@@ -40,6 +41,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       case 'On Leave':
         return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'Inactive':
+      case 'Draft':
         return 'bg-gray-100 text-gray-600 border-gray-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';

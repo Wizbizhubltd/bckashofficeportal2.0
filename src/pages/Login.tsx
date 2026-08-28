@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { AlertCircleIcon, EyeIcon, EyeOffIcon, LoaderIcon } from 'lucide-react';
 import { useFormik } from 'formik';
 import { Logo } from '../components/Logo';
+import { env } from '../config/env';
 import { useAuth } from '../context/AuthContext';
 import { loginSchema } from '../validators/authSchemas';
 export function Login() {
@@ -25,20 +26,10 @@ export function Login() {
       setLoading(true);
 
       try {
-        const result = await login(values.email, values.password);
-
-        if (!result.success) {
-          setError('Invalid email or password. Please try again.');
-          return;
-        }
-
-        if (result.requiresOtp) {
-          navigate('/verify-otp');
-          return;
-        }
-
-        const destination = result.user?.role === 'marketer' ? '/marketer/dashboard' : '/dashboard';
-        navigate(destination);
+        // Every login goes through an OTP challenge — see POST /auth/login
+        // on the backend, which never returns tokens directly.
+        await login(values.email, values.password);
+        navigate('/verify-otp');
       } catch (submitError) {
         setError(
           submitError instanceof Error ?
@@ -75,7 +66,7 @@ export function Login() {
               <span className="text-accent">Through Group Lending</span>
             </h1>
             <p className="text-lg text-white/80 max-w-md">
-              BCKash MFB provides seamless financial access to market groups and
+              BCKash Cooperative provides seamless financial access to market groups and
               cooperatives across Lagos.
             </p>
           </motion.div>
@@ -216,12 +207,15 @@ export function Login() {
               }
             </button>
 
+            {env.enableMockAuth &&
             <p className="text-center text-xs text-gray-400 mt-4">
-              Demo accounts: admin@bckash.com · manager.ikeja@bckash.com ·
-              auth@bckash.com · marketer@bckash.com
-              <br />
-              Password: password123
-            </p>
+                Demo accounts: admin@bckash.com · admin.staff@bckash.com ·
+                manager.ikeja@bckash.com · approver@bckash.com ·
+                marketer@bckash.com
+                <br />
+                Password: password123 · OTP: 123456
+              </p>
+            }
           </form>
         </motion.div>
       </div>

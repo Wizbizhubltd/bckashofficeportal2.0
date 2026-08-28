@@ -20,141 +20,238 @@ import {
   StarIcon,
   ClockIcon,
   HashIcon,
-  FileTextIcon } from
+  Trash2Icon,
+  XCircleIcon,
+  CircleXIcon } from
 'lucide-react';
 import { StatusBadge } from '../../components/StatusBadge';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
-import { api } from '../../app/api';
 import {
   BranchData,
   BankAccount,
   FundingRecord,
   EditBranchModal,
   FundBranchModal,
-  AddBankAccountModal } from
+  AddBankAccountModal,
+  type AddBankAccountFormValues } from
 './BranchModals';
-import { initialBranches } from '../BranchManagement';
+import { branchesService } from '../../services/branches/branches.service';
+import type { BranchManagerAssignment } from '../../services/branches/branches.types';
+import { workflowRequestsService } from '../../services/workflow-requests/workflow-requests.service';
+import type { WorkflowRequestSummary } from '../../services/workflow-requests/workflow-requests.types';
+import { useRoleAssignmentApprovals } from '../../hooks/useRoleAssignmentApprovals';
+import { RoleAssignmentApprovalsPanel } from '../../components/RoleAssignmentApprovalsPanel';
+import {
+  branchBankAccountsService,
+  type BranchBankAccount as RealBranchBankAccount,
+} from '../../services/branch-bank-accounts/branch-bank-accounts.service';
+import { branchFundingService, type BranchFunding } from '../../services/branch-funding/branch-funding.service';
+import { staffService, type Staff } from '../../services/staff/staff.service';
+import { useAuth } from '../../context/AuthContext';
 import { useAppSelector } from '../../store/hooks';
+import type { BranchManagerLookup } from '../../store/slices/lookupsSlice';
+import { STAFF_ROLE_LABEL, STAFF_STATUS_LABEL } from '../../constants/identity-options';
+import { buildFrontendStaffId, toTitleCase } from '../../utils/staff-display';
 
 function formatFund(amount: number): string {
   return `₦${amount.toLocaleString()}`;
 }
 
-function mapBranchDetailsFromApi(raw: unknown, managerDisplayName: string): BranchData | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const source = raw as Record<string, unknown>;
-  const id = typeof source.id === 'string' ? source.id : typeof source._id === 'string' ? source._id : '';
-  const name = typeof source.name === 'string' ? source.name : '';
-  const city = typeof source.city === 'string' ? source.city : '';
-  const state = typeof source.state === 'string' ? source.state : '';
-  const address = typeof source.address === 'string' ? source.address : '';
-
-  if (!id || !name) {
-    return null;
-  }
-
-  const fundingHistory = Array.isArray(source.fundingHistory)
-    ? source.fundingHistory.map((item) => {
-        const funding = item as Record<string, unknown>;
-        const amount = typeof funding.amount === 'number' ? funding.amount : 0;
-        const dateValue = typeof funding.date === 'string' ? funding.date : new Date().toISOString();
-        return {
-          id: typeof funding.id === 'string' ? funding.id : typeof funding._id === 'string' ? funding._id : `FH-${Date.now()}`,
-          amount: formatFund(amount),
-          date: new Date(dateValue).toISOString().split('T')[0],
-          reference: typeof funding.reference === 'string' ? funding.reference : '-',
-          allocatedBy: typeof funding.allocatedBy === 'string' ? funding.allocatedBy : 'System',
-          note: typeof funding.note === 'string' ? funding.note : '',
-        };
-      })
-    : [];
-
-  const bankAccounts = Array.isArray(source.bankAccounts)
-    ? source.bankAccounts.map((item) => {
-        const account = item as Record<string, unknown>;
-        const dateValue = typeof account.dateAdded === 'string' ? account.dateAdded : new Date().toISOString();
-        return {
-          id: typeof account.id === 'string' ? account.id : typeof account._id === 'string' ? account._id : `BA-${Date.now()}`,
-          bankName: typeof account.bankName === 'string' ? account.bankName : '-',
-          accountNumber: typeof account.accountNumber === 'string' ? account.accountNumber : '-',
-          accountName: typeof account.accountName === 'string' ? account.accountName : '-',
-          isCurrent: Boolean(account.isCurrent),
-          dateAdded: new Date(dateValue).toISOString().split('T')[0],
-        };
-      })
-    : [];
-
-  const walletBalance = typeof source.walletBalance === 'number' ? source.walletBalance : 0;
-
-  return {
-    id,
-    name,
-    code: typeof source.code === 'string' ? source.code : undefined,
-    state,
-    city,
-    address,
-    managerId: typeof source.managerId === 'string' ? source.managerId : undefined,
-    organizationId: typeof source.organizationId === 'string' ? source.organizationId : undefined,
-    location: city && state ? `${city}, ${state}` : '—',
-    manager: managerDisplayName,
-    staff: 0,
-    fund: formatFund(walletBalance),
-    activeLoans: 0,
-    status: source.isActive ? 'Active' : 'Inactive',
-    phone: typeof source.phone === 'string' ? source.phone : '',
-    email: typeof source.email === 'string' ? source.email : '',
-    dateCreated: typeof source.createdAt === 'string' ? source.createdAt.split('T')[0] : '',
-    totalDisbursed: '₦0',
-    repaymentRate: '-',
-    bankAccounts,
-    fundingHistory,
-  };
-}
-
-function mapLookupBranchToBranchData(
-  raw: {
-    id: string;
-    name: string;
-    code?: string;
-    address?: string;
-    city?: string;
-    state?: string;
-    phone?: string;
-    email?: string;
-    managerId?: string;
-    organizationId?: string;
-    isActive?: boolean;
-  },
-  managerDisplayName: string,
-): BranchData {
+function toBankAccount(raw: RealBranchBankAccount): BankAccount {
   return {
     id: raw.id,
-    name: raw.name,
-    code: raw.code,
-    state: raw.state,
-    city: raw.city,
-    address: raw.address,
-    managerId: raw.managerId,
-    organizationId: raw.organizationId,
-    location: raw.city && raw.state ? `${raw.city}, ${raw.state}` : '—',
-    manager: managerDisplayName,
-    staff: 0,
-    fund: '₦0',
-    activeLoans: 0,
-    status: raw.isActive ? 'Active' : 'Inactive',
-    phone: raw.phone ?? '',
-    email: raw.email ?? '',
-    dateCreated: '',
-    totalDisbursed: '₦0',
-    repaymentRate: '-',
-    bankAccounts: [],
-    fundingHistory: [],
+    bankName: raw.bankName,
+    accountNumber: raw.accountNumber,
+    accountName: raw.accountName,
+    isCurrent: raw.active,
+    dateAdded: raw.createdAt.split('T')[0],
   };
 }
-type TabKey = 'overview' | 'bank-accounts' | 'funding-history';
+
+function toFundingRecord(raw: BranchFunding): FundingRecord {
+  return {
+    id: raw.id,
+    amount: formatFund(raw.amount / 100),
+    date: raw.fundedAt.split('T')[0],
+    reference: raw.reference ?? '-',
+    allocatedBy: raw.recordedBy,
+    note:
+      raw.status === 'VERIFIED'
+        ? 'Verified'
+        : raw.status === 'REJECTED'
+          ? `Rejected${raw.rejectionReason ? `: ${raw.rejectionReason}` : ''}`
+          : 'Pending verification',
+  };
+}
+
+/**
+ * `managers` (lookups.branchManagers, hydrated once at login) can be stale —
+ * a manager onboarded/assigned after that hydration won't be in it yet. Falls
+ * back to fetching the staff record directly rather than showing their raw
+ * id, same "don't trust the cache to always be current" reasoning as
+ * everywhere else this lookup is read from.
+ */
+async function resolveManagerName(staffId: string | undefined, managers: BranchManagerLookup[]): Promise<string> {
+  if (!staffId) return 'Unassigned';
+  const cached = managers.find((item) => item.id === staffId);
+  if (cached) return cached.fullName;
+  try {
+    const staff = await staffService.getById(staffId);
+    return `${staff.firstName} ${staff.lastName}`.trim() || staffId;
+  } catch {
+    return staffId;
+  }
+}
+
+interface ManagerRecordRow {
+  id: string;
+  managerName: string;
+  assignedByName: string;
+  approvedByName: string;
+  startDate: string;
+  endDate: string | null;
+  comments: string | null;
+}
+
+/**
+ * `getManagerHistory` already comes back current-manager-first (sorted by
+ * startDate desc on the backend), which is exactly what "the current
+ * manager is always the one at the top" needs — no extra client-side sort.
+ * Names are resolved client-side same as everywhere else on this page;
+ * `resolveManagerName` isn't manager-specific despite its name — it's just
+ * "look the id up in the branchManagers cache, else fetch the staff
+ * record" — so it works fine for assignedBy/approvedBy too, even though
+ * those are frequently Admin/SuperAdmin/Approver staff, not Managers.
+ */
+async function loadManagerRecords(
+  branchId: string,
+  managers: BranchManagerLookup[],
+): Promise<ManagerRecordRow[]> {
+  const history: BranchManagerAssignment[] = await branchesService
+    .getManagerHistory(branchId)
+    .catch(() => []);
+
+  return Promise.all(
+    history.map(async (entry) => {
+      const [managerName, assignedByName, approvedByName] = await Promise.all([
+        resolveManagerName(entry.staffId, managers),
+        resolveManagerName(entry.assignedBy, managers),
+        resolveManagerName(entry.approvedBy, managers),
+      ]);
+      return {
+        id: entry.id,
+        managerName,
+        assignedByName,
+        approvedByName,
+        startDate: entry.startDate.split('T')[0],
+        endDate: entry.endDate ? entry.endDate.split('T')[0] : null,
+        comments: entry.comments,
+      };
+    }),
+  );
+}
+
+const BRANCH_MANAGER_ASSIGNMENT_ENTITY_TYPE = 'BRANCH_MANAGER_ASSIGNMENT';
+
+interface ManagerProposalRow {
+  requestId: string;
+  managerName: string;
+  proposedByName: string;
+  proposedAt: string;
+  comments: string | null;
+  isOwnProposal: boolean;
+  rejectedByName: string | null;
+  rejectedAt: string | null;
+  rejectionComment: string | null;
+}
+
+/**
+ * Pending/Rejected BRANCH_MANAGER_ASSIGNMENT proposals for this branch —
+ * `getPendingByEntityType`/`getRejectedByEntityType` are global (every
+ * branch's proposals), so filtered down to this one via `entry.branchId`.
+ * One `getById` per entry to reach the payload (`{ staffId, comments }` —
+ * see BranchManagerAssignmentService.initiateAssignment) — same N+1-but-small
+ * pattern as HrManager.tsx/LoanProductsCrud.tsx/FeeConfiguration.tsx's own
+ * Pending/Rejected tabs.
+ */
+async function buildManagerProposalRows(
+  requests: WorkflowRequestSummary[],
+  managers: BranchManagerLookup[],
+  currentUserId: string | undefined,
+): Promise<ManagerProposalRow[]> {
+  return Promise.all(
+    requests.map(async (entry) => {
+      const detail = await workflowRequestsService.getById(entry.id).catch(() => null);
+      const payload = (detail?.payload ?? {}) as Record<string, unknown>;
+      const staffId = typeof payload.staffId === 'string' ? payload.staffId : undefined;
+      const comments = typeof payload.comments === 'string' ? payload.comments : null;
+      const managerName = await resolveManagerName(staffId, managers);
+      const rejectionStep = entry.steps.find((step) => step.action === 'REJECTED');
+
+      return {
+        requestId: entry.id,
+        managerName,
+        proposedByName: entry.initiatedByName ?? entry.initiatedBy,
+        proposedAt: entry.createdAt,
+        comments,
+        isOwnProposal: Boolean(currentUserId) && currentUserId === entry.initiatedBy,
+        rejectedByName: rejectionStep?.actedByName ?? rejectionStep?.actedBy ?? null,
+        rejectedAt: rejectionStep?.actedAt ?? null,
+        rejectionComment: rejectionStep?.comment ?? null,
+      };
+    }),
+  );
+}
+
+/**
+ * The one real source of truth for this page — replaces the old
+ * `/admin/branches/:id`-guessing mappers entirely. Real Branch has no
+ * phone/email/totalDisbursed/repaymentRate of its own (see the backend's
+ * Branch schema) — left honestly blank/placeholder rather than fabricated,
+ * same as BranchManagement.tsx's own mapper.
+ */
+async function loadBranchDetail(
+  id: string,
+  managers: BranchManagerLookup[],
+): Promise<{ data: BranchData; rawBankAccounts: RealBranchBankAccount[] }> {
+  const [branch, manager, stats, balance, bankAccounts, fundingHistory] = await Promise.all([
+    branchesService.getById(id),
+    branchesService.getCurrentManager(id).catch(() => null),
+    branchesService.getStats(id).catch(() => ({ branchId: id, staffCount: 0, activeLoansCount: 0 })),
+    branchesService.getBalance(id).catch(() => ({ branchId: id, availableAmount: 0 })),
+    branchBankAccountsService.list(id).catch(() => []),
+    branchFundingService.list(id).catch(() => []),
+  ]);
+  const managerName = await resolveManagerName(manager?.staffId, managers);
+
+  return {
+    data: {
+      id: branch.id,
+      name: branch.name,
+      code: branch.code,
+      address: branch.address ?? '',
+      managerId: manager?.staffId,
+      location: branch.address || '—',
+      manager: managerName,
+      staff: stats.staffCount,
+      fund: formatFund(balance.availableAmount / 100),
+      activeLoans: stats.activeLoansCount,
+      status: branch.active ? 'Active' : 'Inactive',
+      phone: branch.phone ?? '',
+      email: branch.email ?? '',
+      dateCreated: branch.createdAt ? branch.createdAt.split('T')[0] : '',
+      totalDisbursed: '—',
+      repaymentRate: '—',
+      bankAccounts: bankAccounts.map(toBankAccount),
+      fundingHistory: fundingHistory
+        .slice()
+        .sort((a, b) => new Date(b.fundedAt).getTime() - new Date(a.fundedAt).getTime())
+        .map(toFundingRecord),
+    },
+    rawBankAccounts: bankAccounts,
+  };
+}
+type TabKey = 'overview' | 'bank-accounts' | 'funding-history' | 'manager-records' | 'role-assignments' | 'staff-directory';
 const tabs: {
   key: TabKey;
   label: string;
@@ -170,6 +267,18 @@ const tabs: {
 {
   key: 'funding-history',
   label: 'Funding History'
+},
+{
+  key: 'manager-records',
+  label: 'Manager Records'
+},
+{
+  key: 'role-assignments',
+  label: 'Role Assignments'
+},
+{
+  key: 'staff-directory',
+  label: 'Staff Directory'
 }];
 
 function InfoItem({
@@ -219,11 +328,42 @@ export function BranchDetail() {
     id: string;
   }>();
   const navigate = useNavigate();
-  const lookupBranches = useAppSelector((state) => state.lookups.branches);
+  const { user } = useAuth();
   const branchManagers = useAppSelector((state) => state.lookups.branchManagers);
-  const [branch, setBranch] = useState<BranchData | null>(() => {
-    return initialBranches.find((b) => b.id === id) || null;
-  });
+  // See BranchManagement.tsx's own comment — Approver can view/approve/
+  // delete a branch but lacks org:manage/branch:fund.
+  const isApprover = user?.role === 'approver';
+  // No fabricated seed data here anymore — starts null (a loading state)
+  // until the real fetch below resolves.
+  const [branch, setBranch] = useState<BranchData | null>(null);
+  const [rawBankAccounts, setRawBankAccounts] = useState<RealBranchBankAccount[]>([]);
+  const [managerRecords, setManagerRecords] = useState<ManagerRecordRow[]>([]);
+  const [managerRecordsLoading, setManagerRecordsLoading] = useState(false);
+  // Manager Records has its own Pending/Approved/Rejected sub-tabs — a
+  // proposed assignment (BRANCH_MANAGER_ASSIGNMENT is a real maker-checker
+  // workflow now, see BranchManagerAssignmentService) is otherwise invisible
+  // anywhere on this page until approved.
+  const [managerRecordsView, setManagerRecordsView] = useState<'pending' | 'approved' | 'rejected'>('approved');
+  const [managerPendingRows, setManagerPendingRows] = useState<ManagerProposalRow[]>([]);
+  const [isLoadingManagerPending, setIsLoadingManagerPending] = useState(false);
+  const [managerRejectedRows, setManagerRejectedRows] = useState<ManagerProposalRow[]>([]);
+  const [isLoadingManagerRejected, setIsLoadingManagerRejected] = useState(false);
+  const [actingManagerRequestId, setActingManagerRequestId] = useState<string | null>(null);
+  // A reason is required server-side to reject — captured via a modal
+  // rather than acting immediately on click.
+  const [managerRejectTargetId, setManagerRejectTargetId] = useState<string | null>(null);
+  // Maker withdrawing their own still-pending proposal — same "single-step
+  // chain sits at PENDING_APPROVAL immediately" reasoning as every other
+  // withdraw button in this app (see workflowRequestsService.cancel's own
+  // doc comment).
+  const [managerWithdrawTargetId, setManagerWithdrawTargetId] = useState<string | null>(null);
+  const [isWithdrawingManagerRequest, setIsWithdrawingManagerRequest] = useState(false);
+  const [managerDeleteTargetId, setManagerDeleteTargetId] = useState<string | null>(null);
+  const [isDeletingManagerRequest, setIsDeletingManagerRequest] = useState(false);
+  const [staffDirectory, setStaffDirectory] = useState<Staff[]>([]);
+  const [staffDirectoryLoading, setStaffDirectoryLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('overview');
   // Modal states
   const [editOpen, setEditOpen] = useState(false);
@@ -232,6 +372,8 @@ export function BranchDetail() {
   const [statusModal, setStatusModal] = useState<
     'activate' | 'deactivate' | null>(
     null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // Toast
   const [toast, setToast] = useState<{
     message: string;
@@ -255,47 +397,165 @@ export function BranchDetail() {
     );
   }
 
+  const refreshManagerRecords = async () => {
+    if (!id) {
+      setManagerRecords([]);
+      return;
+    }
+    setManagerRecordsLoading(true);
+    try {
+      setManagerRecords(await loadManagerRecords(id, branchManagers));
+    } finally {
+      setManagerRecordsLoading(false);
+    }
+  };
+
+  const refreshManagerPending = async () => {
+    if (!id) {
+      setManagerPendingRows([]);
+      return;
+    }
+    setIsLoadingManagerPending(true);
+    try {
+      const all = await workflowRequestsService.getPendingByEntityType(BRANCH_MANAGER_ASSIGNMENT_ENTITY_TYPE);
+      const requests = all.filter((entry) => entry.branchId === id);
+      setManagerPendingRows(await buildManagerProposalRows(requests, branchManagers, user?.id));
+    } catch {
+      setManagerPendingRows([]);
+    } finally {
+      setIsLoadingManagerPending(false);
+    }
+  };
+
+  const refreshManagerRejected = async () => {
+    if (!id) {
+      setManagerRejectedRows([]);
+      return;
+    }
+    setIsLoadingManagerRejected(true);
+    try {
+      const all = await workflowRequestsService.getRejectedByEntityType(BRANCH_MANAGER_ASSIGNMENT_ENTITY_TYPE);
+      const requests = all.filter((entry) => entry.branchId === id);
+      setManagerRejectedRows(await buildManagerProposalRows(requests, branchManagers, user?.id));
+    } catch {
+      setManagerRejectedRows([]);
+    } finally {
+      setIsLoadingManagerRejected(false);
+    }
+  };
+
+  const refreshStaffDirectory = async () => {
+    if (!id) {
+      setStaffDirectory([]);
+      return;
+    }
+    setStaffDirectoryLoading(true);
+    try {
+      setStaffDirectory(await staffService.list(id));
+    } catch {
+      setStaffDirectory([]);
+    } finally {
+      setStaffDirectoryLoading(false);
+    }
+  };
+
+  // BRANCH_ROLE_ASSIGNMENT proposals (Admin/Approver assigned to cover this
+  // branch, among possibly others) — separate maker-checker queue from the
+  // single-manager BRANCH_MANAGER_ASSIGNMENT one above. See
+  // useRoleAssignmentApprovals's own doc comment.
+  const roleAssignmentApprovals = useRoleAssignmentApprovals(
+    { branchId: id },
+    (message) => showToast(message),
+    () => void refreshStaffDirectory(),
+  );
+
+  const refreshBranch = async () => {
+    if (!id) {
+      setBranch(null);
+      setRawBankAccounts([]);
+      return;
+    }
+    setLoadError(null);
+    try {
+      const { data, rawBankAccounts: raw } = await loadBranchDetail(id, branchManagers);
+      setBranch(data);
+      setRawBankAccounts(raw);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Failed to load branch');
+    }
+    // Fire-and-forget — secondary tabs, shouldn't hold up the rest of the page.
+    void refreshManagerRecords();
+    void refreshManagerPending();
+    void refreshManagerRejected();
+    void refreshStaffDirectory();
+  };
+
   useEffect(() => {
     if (!id) {
       setBranch(null);
+      setRawBankAccounts([]);
+      setManagerRecords([]);
+      setManagerPendingRows([]);
+      setManagerRejectedRows([]);
+      setStaffDirectory([]);
+      setIsLoading(false);
       return;
     }
 
-    const fromInitial = initialBranches.find((item) => item.id === id) || null;
-    const fromLookup = lookupBranches.find((item) => item.id === id) || null;
-
-    const loadFromApi = async () => {
-      try {
-        const response = await api.get(`/admin/branches/${id}`);
-        const envelope = response as { data?: unknown; payload?: unknown; item?: unknown };
-        const raw = envelope.data ?? envelope.payload ?? envelope.item;
-        const manager =
-          (fromLookup?.managerId && branchManagers.find((item) => item.id === fromLookup.managerId)?.fullName) ||
-          (typeof fromLookup?.managerId === 'string' ? fromLookup.managerId : 'Unassigned');
-        const mapped = mapBranchDetailsFromApi(raw, manager ?? 'Unassigned');
-        if (mapped) {
-          setBranch(mapped);
-          return;
+    let isMounted = true;
+    setIsLoading(true);
+    loadBranchDetail(id, branchManagers)
+      .then(({ data, rawBankAccounts: raw }) => {
+        if (isMounted) {
+          setBranch(data);
+          setRawBankAccounts(raw);
         }
-      } catch {
-        // fallback below
-      }
+      })
+      .catch((error) => {
+        if (isMounted) setLoadError(error instanceof Error ? error.message : 'Failed to load branch');
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
 
-      if (fromLookup) {
-        const manager =
-          (typeof fromLookup.managerId === 'string' &&
-            branchManagers.find((item) => item.id === fromLookup.managerId)?.fullName) ||
-          (typeof fromLookup.managerId === 'string' && fromLookup.managerId) ||
-          'Unassigned';
-        setBranch(mapLookupBranchToBranchData(fromLookup, manager));
-        return;
-      }
+    setManagerRecordsLoading(true);
+    loadManagerRecords(id, branchManagers)
+      .then((rows) => {
+        if (isMounted) setManagerRecords(rows);
+      })
+      .finally(() => {
+        if (isMounted) setManagerRecordsLoading(false);
+      });
 
-      setBranch(fromInitial);
+    void refreshManagerPending();
+    void refreshManagerRejected();
+
+    setStaffDirectoryLoading(true);
+    staffService
+      .list(id)
+      .then((staff) => {
+        if (isMounted) setStaffDirectory(staff);
+      })
+      .catch(() => {
+        if (isMounted) setStaffDirectory([]);
+      })
+      .finally(() => {
+        if (isMounted) setStaffDirectoryLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
-    void loadFromApi();
-  }, [branchManagers, id, lookupBranches]);
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <BuildingIcon size={48} className="text-gray-300 mb-4 animate-pulse" />
+        <p className="text-sm font-body text-gray-400">Loading branch...</p>
+      </div>);
+  }
 
   if (!branch) {
     return (
@@ -305,173 +565,184 @@ export function BranchDetail() {
           Branch Not Found
         </h3>
         <p className="text-sm font-body text-gray-400 mt-1">
-          The branch you're looking for doesn't exist.
+          {loadError || "The branch you're looking for doesn't exist."}
         </p>
         <button
           onClick={() => navigate('/branches')}
           className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-heading font-bold hover:bg-primary/90 transition-colors">
-          
+
           Back to Branches
         </button>
       </div>);
 
   }
-  function parseFund(fund: string): number {
-    return parseInt(fund.replace(/[₦,]/g, ''), 10) || 0;
-  }
-  function formatFund(amount: number): string {
-    return `₦${amount.toLocaleString()}`;
-  }
   async function handleEdit(branchId: string, data: Partial<BranchData>) {
     try {
-      const response = await api.patch(`/admin/branches/${branchId}`, data);
-      const envelope = response as { data?: unknown; payload?: unknown; item?: unknown };
-      const raw = envelope.data ?? envelope.payload ?? envelope.item;
-      const manager =
-        (typeof data.managerId === 'string' && branchManagers.find((item) => item.id === data.managerId)?.fullName) ||
-        (typeof data.managerId === 'string' ? data.managerId : branch?.manager ?? 'Unassigned');
-      const mapped = mapBranchDetailsFromApi(raw, manager);
-      if (mapped) {
-        setBranch(mapped);
-      }
-      showToast('Branch details updated successfully');
-      return;
-    } catch {
-      setBranch((prev) =>
-        prev
-          ? {
-              ...prev,
-              ...data,
-            }
-          : prev,
-      );
-      showToast('Branch updated locally (API unavailable)');
-    }
-  }
-  async function handleFund(branchId: string, amount: number, note: string) {
-    try {
-      const response = await api.post(`/admin/branches/${branchId}/funding`, {
-        amount,
-        note,
+      await branchesService.update(branchId, {
+        name: data.name,
+        code: data.code,
+        address: data.address,
+        phone: data.phone || undefined,
+        email: data.email || undefined,
+        active: data.status === 'Active' ? true : data.status === 'Inactive' ? false : undefined,
       });
-      const envelope = response as { data?: unknown; payload?: unknown; item?: unknown };
-      const raw = envelope.data ?? envelope.payload ?? envelope.item;
-      const mapped = mapBranchDetailsFromApi(raw, branch?.manager ?? 'Unassigned');
-      if (mapped) {
-        setBranch(mapped);
-      }
-      showToast(`₦${amount.toLocaleString()} allocated successfully`);
-      return;
-    } catch {
-      // local fallback below
-    }
 
-    setBranch((prev) => {
-      if (!prev) return prev;
-      const current = parseFund(prev.fund);
-      const newRecord: FundingRecord = {
-        id: `FH-${Date.now()}`,
-        amount: formatFund(amount),
-        date: new Date().toISOString().split('T')[0],
-        reference: `FND-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 999)).padStart(3, '0')}`,
-        allocatedBy: 'Adebayo Johnson',
-        note: note || 'Fund allocation'
-      };
-      return {
-        ...prev,
-        fund: formatFund(current + amount),
-        fundingHistory: [newRecord, ...prev.fundingHistory]
-      };
-    });
-    showToast(`₦${amount.toLocaleString()} allocated locally`);
+      // Workflow-mediated, not immediate — a different Admin/SuperAdmin/
+      // Approver still has to approve this before it actually takes effect
+      // (see BranchManagerAssignmentService), so the branch keeps showing
+      // its current manager (or Unassigned) until then. Messaged separately
+      // from the branch-details update above since it's a genuinely
+      // different outcome ("saved" vs. "proposed, pending approval").
+      let managerProposed = false;
+      if (typeof data.managerId === 'string' && data.managerId !== branch?.managerId) {
+        await branchesService.assignManager(branchId, { staffId: data.managerId });
+        managerProposed = true;
+      }
+
+      await refreshBranch();
+      showToast(
+        managerProposed
+          ? 'Branch details updated. Manager assignment proposed — awaiting a second approver.'
+          : 'Branch details updated successfully',
+      );
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to update branch');
+    }
   }
-  async function handleAddBankAccount(data: Omit<BankAccount, 'id' | 'dateAdded'>) {
+  async function handleFund(branchId: string, bankAccountId: string, amountKobo: number, fundedAt: string, reference: string) {
+    try {
+      await branchFundingService.record({
+        branchId,
+        bankAccountId,
+        amount: amountKobo,
+        fundedAt,
+        reference: reference || undefined,
+      });
+      await refreshBranch();
+      showToast(`₦${(amountKobo / 100).toLocaleString()} recorded — awaiting the branch manager's verification`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to record funding');
+    }
+  }
+  async function handleAddBankAccount(data: AddBankAccountFormValues) {
     if (!branch) {
       return;
     }
 
     try {
-      const response = await api.post(`/admin/branches/${branch.id}/bank-accounts`, data);
-      const envelope = response as { data?: unknown; payload?: unknown; item?: unknown };
-      const raw = envelope.data ?? envelope.payload ?? envelope.item;
-      const mapped = mapBranchDetailsFromApi(raw, branch.manager);
-      if (mapped) {
-        setBranch(mapped);
-      }
+      await branchBankAccountsService.create({
+        branchId: branch.id,
+        bankName: data.bankName,
+        accountNumber: data.accountNumber,
+        accountName: data.accountName,
+        purpose: data.purpose,
+        active: data.isCurrent,
+      });
+      await refreshBranch();
       showToast('Bank account added successfully');
-      return;
-    } catch {
-      // local fallback below
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to add bank account');
     }
-
-    setBranch((prev) => {
-      if (!prev) return prev;
-      const newAccount: BankAccount = {
-        ...data,
-        id: `BA-${Date.now()}`,
-        dateAdded: new Date().toISOString().split('T')[0]
-      };
-      let updatedAccounts = [...prev.bankAccounts];
-      if (data.isCurrent) {
-        updatedAccounts = updatedAccounts.map((a) => ({
-          ...a,
-          isCurrent: false
-        }));
-      }
-      updatedAccounts.push(newAccount);
-      return {
-        ...prev,
-        bankAccounts: updatedAccounts
-      };
-    });
-    showToast('Bank account added locally');
   }
-  function handleSetCurrent(accountId: string) {
-    setBranch((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        bankAccounts: prev.bankAccounts.map((a) => ({
-          ...a,
-          isCurrent: a.id === accountId
-        }))
-      };
-    });
-    showToast('Primary bank account updated');
+  async function handleSetCurrent(accountId: string) {
+    try {
+      // Deactivates whichever other account for this branch currently holds
+      // that spot — see BranchBankAccountsService.update's own doc comment.
+      await branchBankAccountsService.update(accountId, { active: true });
+      await refreshBranch();
+      showToast('Active bank account updated');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to update active bank account');
+    }
   }
   async function handleStatusChange() {
     const newStatus = statusModal === 'activate' ? 'Active' : 'Inactive';
+    if (!branch) {
+      setStatusModal(null);
+      return;
+    }
     try {
-      if (!branch) {
-        return;
-      }
-      if (newStatus === 'Active') {
-        await api.patch(`/admin/branches/${branch.id}/reactivate`);
-      } else {
-        await api.patch(`/admin/branches/${branch.id}/deactivate`);
-      }
-      setBranch((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: newStatus,
-            }
-          : prev,
-      );
+      await branchesService.update(branch.id, { active: newStatus === 'Active' });
+      await refreshBranch();
       showToast(`Branch ${newStatus === 'Active' ? 'activated' : 'deactivated'} successfully`);
-    } catch {
-      setBranch((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: newStatus,
-            }
-          : prev,
-      );
-      showToast(`Branch ${newStatus === 'Active' ? 'activated' : 'deactivated'} locally`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to change branch status');
     }
     setStatusModal(null);
   }
+  /** Super Admin/Admin/Approver only — hard-delete. Only possible while the branch is inactive and nothing still references it. */
+  async function handleDelete() {
+    if (!branch) return;
+    setDeleting(true);
+    try {
+      await branchesService.remove(branch.id);
+      showToast(`Branch "${branch.name}" deleted`);
+      navigate('/branches');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to delete branch');
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
+  }
+
+  async function handleManagerWorkflowAction(requestId: string, action: 'APPROVED' | 'REJECTED', comment?: string) {
+    setActingManagerRequestId(requestId);
+    try {
+      await workflowRequestsService.act(requestId, { action, comment });
+      // Approving changes the branch's actual current manager — refreshBranch
+      // also re-triggers the Approved/Staff Directory sub-tabs, not just the
+      // headline "Manager" field.
+      await Promise.all([refreshBranch(), refreshManagerPending(), refreshManagerRejected()]);
+      if (action === 'APPROVED') {
+        setManagerRecordsView('approved');
+        showToast('Manager assignment approved');
+      } else {
+        setManagerRecordsView('rejected');
+        showToast('Manager assignment rejected');
+      }
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to act on this request');
+    } finally {
+      setActingManagerRequestId(null);
+    }
+  }
+
+  function confirmManagerReject(comment?: string) {
+    if (!managerRejectTargetId || !comment?.trim()) return;
+    void handleManagerWorkflowAction(managerRejectTargetId, 'REJECTED', comment.trim());
+    setManagerRejectTargetId(null);
+  }
+
+  async function handleWithdrawManagerRequest() {
+    if (!managerWithdrawTargetId) return;
+    setIsWithdrawingManagerRequest(true);
+    try {
+      await workflowRequestsService.cancel(managerWithdrawTargetId);
+      showToast('Proposal withdrawn');
+      setManagerWithdrawTargetId(null);
+      await refreshManagerPending();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to withdraw this proposal');
+    } finally {
+      setIsWithdrawingManagerRequest(false);
+    }
+  }
+
+  async function handleDeleteManagerRequest() {
+    if (!managerDeleteTargetId) return;
+    setIsDeletingManagerRequest(true);
+    try {
+      await workflowRequestsService.deleteRequest(managerDeleteTargetId);
+      showToast('Rejected proposal deleted');
+      setManagerDeleteTargetId(null);
+      await refreshManagerRejected();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to delete this proposal');
+    } finally {
+      setIsDeletingManagerRequest(false);
+    }
+  }
+
   const currentAccount = branch.bankAccounts.find((a) => a.isCurrent);
   return (
     <div className="space-y-6">
@@ -513,6 +784,7 @@ export function BranchDetail() {
         isOpen={fundOpen}
         onClose={() => setFundOpen(false)}
         branch={branch}
+        activeBankAccount={rawBankAccounts.find((account) => account.active) ?? null}
         onSubmit={handleFund} />
       
       <AddBankAccountModal
@@ -531,7 +803,55 @@ export function BranchDetail() {
         }
         confirmLabel={statusModal === 'activate' ? 'Activate' : 'Deactivate'}
         />
-      
+
+      <ConfirmationModal
+        isOpen={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={() => void handleDelete()}
+        title={`Delete "${branch.name}"?`}
+        description="This permanently removes the branch and its bank accounts/fund balance. This cannot be undone. Only possible while the branch is inactive and nothing (staff, customers, groups, loans) still references it."
+        icon={<Trash2Icon size={20} className="text-red-600" />}
+        confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+        confirmVariant="danger"
+        />
+
+      <ConfirmationModal
+        isOpen={managerRejectTargetId !== null}
+        onClose={() => setManagerRejectTargetId(null)}
+        onConfirm={(reason) => confirmManagerReject(reason)}
+        title="Reject this manager assignment?"
+        description="A reason is required — the person who proposed it will see it."
+        icon={<XCircleIcon size={20} className="text-red-600" />}
+        confirmLabel="Reject"
+        confirmVariant="danger"
+        inputType="textarea"
+        inputLabel="Reason for rejection"
+        inputPlaceholder="e.g. This staff member is needed at their current branch"
+        requireInput
+        />
+
+      <ConfirmationModal
+        isOpen={managerWithdrawTargetId !== null}
+        onClose={() => setManagerWithdrawTargetId(null)}
+        onConfirm={() => void handleWithdrawManagerRequest()}
+        title="Withdraw this proposal?"
+        description="This removes it from the approval queue — nothing was ever assigned, so there's nothing else to undo. This cannot be reversed."
+        icon={<Trash2Icon size={20} className="text-red-600" />}
+        confirmLabel={isWithdrawingManagerRequest ? 'Withdrawing…' : 'Withdraw'}
+        confirmVariant="danger"
+        />
+
+      <ConfirmationModal
+        isOpen={managerDeleteTargetId !== null}
+        onClose={() => setManagerDeleteTargetId(null)}
+        onConfirm={() => void handleDeleteManagerRequest()}
+        title="Delete this rejected proposal?"
+        description="This permanently removes the request — it cannot be undone."
+        icon={<Trash2Icon size={20} className="text-red-600" />}
+        confirmLabel={isDeletingManagerRequest ? 'Deleting…' : 'Delete'}
+        confirmVariant="danger"
+        />
+
 
       {/* Header */}
       <div className="flex flex-col gap-4">
@@ -555,40 +875,68 @@ export function BranchDetail() {
                 </h1>
                 <StatusBadge status={branch.status as any} />
               </div>
-              <p className="text-sm font-body text-gray-500 mt-0.5">
-                {branch.id} · {branch.location}
-              </p>
+              <p className="text-sm font-body text-gray-500 mt-0.5">{branch.location}</p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {!isApprover &&
             <button
               onClick={() => setEditOpen(true)}
               className="flex items-center gap-1.5 px-4 py-2 border border-gray-200 rounded-lg text-sm font-heading font-bold text-gray-600 hover:bg-gray-50 transition-colors">
-              
-              <PencilIcon size={14} />
-              Edit
-            </button>
+
+                <PencilIcon size={14} />
+                Edit
+              </button>
+            }
+            {!isApprover && branch.manager === 'Unassigned' &&
+            // Opens the same Edit modal (its Branch Manager field already
+            // does the real work — see handleEdit's assignManager call
+            // below) rather than a separate one-field modal — same data,
+            // same validation (a manager already assigned elsewhere is
+            // excluded), no second implementation to keep in sync.
+            <button
+              onClick={() => setEditOpen(true)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-heading font-bold hover:bg-amber-600 transition-colors">
+
+                <UserIcon size={14} />
+                Assign Manager
+              </button>
+            }
+            {!isApprover &&
             <button
               onClick={() => setFundOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-heading font-bold hover:bg-primary/90 transition-colors">
-              
-              <WalletIcon size={14} />
-              Fund Branch
-            </button>
-            {branch.status === 'Active' ?
+              disabled={branch.manager === 'Unassigned'}
+              title={branch.manager === 'Unassigned' ? 'Assign a manager to this branch before it can be funded' : undefined}
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-heading font-bold hover:bg-primary/90 transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-200">
+
+                <WalletIcon size={14} />
+                Fund Branch
+              </button>
+            }
+            {!isApprover && (branch.status === 'Active' ?
             <button
               onClick={() => setStatusModal('deactivate')}
               className="flex items-center gap-1.5 px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-heading font-bold hover:bg-red-50 transition-colors">
-              
+
                 Deactivate
               </button> :
 
             <button
               onClick={() => setStatusModal('activate')}
               className="flex items-center gap-1.5 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-heading font-bold hover:bg-green-700 transition-colors">
-              
+
                 Activate
+              </button>
+            )}
+            {branch.status !== 'Active' &&
+            <button
+              onClick={() => setDeleteOpen(true)}
+              title="Only a deactivated branch with nothing still referencing it can be deleted"
+              className="flex items-center gap-1.5 px-4 py-2 border border-red-200 text-red-600 rounded-lg text-sm font-heading font-bold hover:bg-red-50 transition-colors">
+
+                <Trash2Icon size={14} />
+                Delete
               </button>
             }
           </div>
@@ -615,6 +963,29 @@ export function BranchDetail() {
             branch.fundingHistory.length > 0 &&
             <span className="ml-1.5 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
                     {branch.fundingHistory.length}
+                  </span>
+            }
+              {tab.key === 'manager-records' && managerPendingRows.length > 0 &&
+            <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+                    {managerPendingRows.length} pending
+                  </span>
+            }
+              {tab.key === 'manager-records' &&
+            managerPendingRows.length === 0 &&
+            managerRecords.length > 0 &&
+            <span className="ml-1.5 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                    {managerRecords.length}
+                  </span>
+            }
+              {tab.key === 'role-assignments' && roleAssignmentApprovals.pendingRows.length > 0 &&
+            <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
+                    {roleAssignmentApprovals.pendingRows.length} pending
+                  </span>
+            }
+              {tab.key === 'staff-directory' &&
+            staffDirectory.length > 0 &&
+            <span className="ml-1.5 text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                    {staffDirectory.length}
                   </span>
             }
               {activeTab === tab.key &&
@@ -725,8 +1096,8 @@ export function BranchDetail() {
                   <InfoItem
                   icon={<HashIcon size={16} />}
                   label="Branch ID"
-                  value={branch.id} />
-                
+                  value={branch.code || branch.id} />
+
                 </div>
               </div>
 
@@ -998,8 +1369,10 @@ export function BranchDetail() {
               </div>
               <button
               onClick={() => setFundOpen(true)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-heading font-bold hover:bg-primary/90 transition-colors">
-              
+              disabled={branch.manager === 'Unassigned'}
+              title={branch.manager === 'Unassigned' ? 'Assign a manager to this branch before it can be funded' : undefined}
+              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg text-sm font-heading font-bold hover:bg-primary/90 transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-200">
+
                 <WalletIcon size={14} />
                 Allocate Funds
               </button>
@@ -1016,8 +1389,10 @@ export function BranchDetail() {
                 </p>
                 <button
               onClick={() => setFundOpen(true)}
-              className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-heading font-bold hover:bg-primary/90 transition-colors">
-              
+              disabled={branch.manager === 'Unassigned'}
+              title={branch.manager === 'Unassigned' ? 'Assign a manager to this branch before it can be funded' : undefined}
+              className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-sm font-heading font-bold hover:bg-primary/90 transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed disabled:hover:bg-gray-200">
+
                   Allocate First Fund
                 </button>
               </div> :
@@ -1035,7 +1410,7 @@ export function BranchDetail() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-sm">
-                      {branch.fundingHistory.map((record, index) =>
+                      {branch.fundingHistory.map((record) =>
                   <tr
                     key={record.id}
                     className="hover:bg-gray-50/50 transition-colors">
@@ -1084,6 +1459,355 @@ export function BranchDetail() {
                       {branch.fund}
                     </span>
                   </p>
+                </div>
+              </div>
+          }
+          </motion.div>
+        }
+
+        {activeTab === 'manager-records' &&
+        <motion.div
+          key="manager-records"
+          initial={{
+            opacity: 0,
+            y: 8
+          }}
+          animate={{
+            opacity: 1,
+            y: 0
+          }}
+          exit={{
+            opacity: 0,
+            y: -8
+          }}
+          transition={{
+            duration: 0.2
+          }}
+          className="space-y-4">
+
+            <div>
+              <h3 className="text-base font-heading font-bold text-gray-900">
+                Manager Records
+              </h3>
+              <p className="text-sm font-body text-gray-500 mt-0.5">
+                Every manager ever assigned to this branch — the current one is always listed first.
+              </p>
+            </div>
+
+            <div className="flex bg-gray-100 rounded-lg p-0.5 w-fit">
+              <button
+                onClick={() => setManagerRecordsView('pending')}
+                className={`px-4 py-1.5 text-sm font-body rounded-md transition-colors ${managerRecordsView === 'pending' ? 'bg-white text-primary font-bold shadow-sm' : 'text-gray-500'}`}>
+                Pending ({managerPendingRows.length})
+              </button>
+              <button
+                onClick={() => setManagerRecordsView('approved')}
+                className={`px-4 py-1.5 text-sm font-body rounded-md transition-colors ${managerRecordsView === 'approved' ? 'bg-white text-primary font-bold shadow-sm' : 'text-gray-500'}`}>
+                Approved ({managerRecords.length})
+              </button>
+              <button
+                onClick={() => setManagerRecordsView('rejected')}
+                className={`px-4 py-1.5 text-sm font-body rounded-md transition-colors ${managerRecordsView === 'rejected' ? 'bg-white text-primary font-bold shadow-sm' : 'text-gray-500'}`}>
+                Rejected ({managerRejectedRows.length})
+              </button>
+            </div>
+
+            {managerRecordsView === 'pending' ?
+          <div className="space-y-3">
+                {isLoadingManagerPending && managerPendingRows.length === 0 ?
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
+                    <ClockIcon size={40} className="text-gray-200 mx-auto mb-3 animate-pulse" />
+                    <p className="text-sm font-body text-gray-400">Loading pending requests...</p>
+                  </div> :
+            managerPendingRows.length === 0 ?
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
+                    <ClockIcon size={40} className="text-gray-200 mx-auto mb-3" />
+                    <p className="text-sm font-heading font-bold text-gray-500">Nothing awaiting approval</p>
+                    <p className="text-xs font-body text-gray-400 mt-1">A proposed manager assignment will show up here until it's approved or rejected.</p>
+                  </div> :
+
+            managerPendingRows.map((row) =>
+            <div key={row.requestId} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
+                        <ClockIcon size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-heading font-bold text-gray-900">{row.managerName}</p>
+                          {row.isOwnProposal &&
+                    <span className="px-2 py-0.5 rounded-full text-xs font-heading font-medium bg-blue-50 text-blue-600">Your proposal</span>
+                    }
+                        </div>
+                        <p className="text-xs font-body text-gray-400 mt-0.5">
+                          Proposed by {row.proposedByName} · {new Date(row.proposedAt).toLocaleDateString()}
+                        </p>
+                        {row.comments &&
+                  <p className="text-xs font-body text-gray-500 mt-1 italic">"{row.comments}"</p>
+                  }
+                      </div>
+                    </div>
+
+                    {row.isOwnProposal ?
+              <div className="flex items-start gap-2 flex-shrink-0">
+                        <p className="text-xs font-body text-gray-400 text-right max-w-[160px]">
+                          Awaiting another Admin/SuperAdmin/Approver's review — you can't approve your own proposal.
+                        </p>
+                        <button
+                    disabled={actingManagerRequestId === row.requestId}
+                    onClick={() => setManagerWithdrawTargetId(row.requestId)}
+                    title="Withdraw this proposal"
+                    aria-label="Withdraw this proposal"
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-60">
+                          <Trash2Icon size={15} />
+                        </button>
+                      </div> :
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                        <button
+                    disabled={actingManagerRequestId === row.requestId}
+                    onClick={() => void handleManagerWorkflowAction(row.requestId, 'APPROVED')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-heading font-bold border border-green-200 text-green-700 hover:bg-green-50 disabled:opacity-60">
+                          <CheckCircleIcon size={13} /> Approve
+                        </button>
+                        <button
+                    disabled={actingManagerRequestId === row.requestId}
+                    onClick={() => setManagerRejectTargetId(row.requestId)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-heading font-bold border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-60">
+                          <XCircleIcon size={13} /> Reject
+                        </button>
+                      </div>
+              }
+                  </div>
+            )}
+              </div> :
+
+          managerRecordsView === 'rejected' ?
+          <div className="space-y-3">
+                {isLoadingManagerRejected && managerRejectedRows.length === 0 ?
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
+                    <CircleXIcon size={40} className="text-gray-200 mx-auto mb-3 animate-pulse" />
+                    <p className="text-sm font-body text-gray-400">Loading rejected requests...</p>
+                  </div> :
+            managerRejectedRows.length === 0 ?
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
+                    <CircleXIcon size={40} className="text-gray-200 mx-auto mb-3" />
+                    <p className="text-sm font-heading font-bold text-gray-500">Nothing rejected</p>
+                    <p className="text-xs font-body text-gray-400 mt-1">A rejected manager assignment never takes effect — it shows up here instead of in Approved.</p>
+                  </div> :
+
+            managerRejectedRows.map((row) =>
+            <div key={row.requestId} className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4 min-w-0">
+                      <div className="w-10 h-10 rounded-lg bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0">
+                        <CircleXIcon size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-heading font-bold text-gray-900">{row.managerName}</p>
+                        <p className="text-xs font-body text-gray-400 mt-0.5">
+                          Proposed by {row.proposedByName} · {new Date(row.proposedAt).toLocaleDateString()}
+                        </p>
+                        {row.comments &&
+                  <p className="text-xs font-body text-gray-500 mt-1 italic">"{row.comments}"</p>
+                  }
+                        {row.rejectedByName &&
+                  <p className="text-xs font-body text-red-600 mt-1.5">
+                            Rejected by {row.rejectedByName}
+                            {row.rejectedAt ? ` · ${new Date(row.rejectedAt).toLocaleDateString()}` : ''}
+                            {row.rejectionComment ? `: "${row.rejectionComment}"` : ''}
+                          </p>
+                  }
+                      </div>
+                    </div>
+                    {row.isOwnProposal &&
+              <button
+                onClick={() => setManagerDeleteTargetId(row.requestId)}
+                title="Delete this rejected proposal"
+                aria-label="Delete this rejected proposal"
+                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0">
+                        <Trash2Icon size={15} />
+                      </button>
+              }
+                  </div>
+            )}
+              </div> :
+
+          managerRecordsLoading && managerRecords.length === 0 ?
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
+                <UserIcon size={48} className="text-gray-200 mx-auto mb-4 animate-pulse" />
+                <p className="text-sm font-body text-gray-400">Loading manager records...</p>
+              </div> :
+          managerRecords.length === 0 ?
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
+                <UserIcon size={48} className="text-gray-200 mx-auto mb-4" />
+                <h4 className="text-base font-heading font-bold text-gray-600">
+                  No Manager Records
+                </h4>
+                <p className="text-sm font-body text-gray-400 mt-1">
+                  No manager has ever been assigned to this branch.
+                </p>
+              </div> :
+
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wider font-heading">
+                        <th className="px-6 py-4 font-medium">Name</th>
+                        <th className="px-6 py-4 font-medium">Assigned By</th>
+                        <th className="px-6 py-4 font-medium">Approved By</th>
+                        <th className="px-6 py-4 font-medium">Date Assigned</th>
+                        <th className="px-6 py-4 font-medium">Date Replaced</th>
+                        <th className="px-6 py-4 font-medium">Comments</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-sm">
+                      {managerRecords.map((record) =>
+                  <tr
+                    key={record.id}
+                    className="hover:bg-gray-50/50 transition-colors">
+
+                          <td className="px-6 py-4 font-body font-medium text-gray-800">
+                            <div className="flex items-center gap-2">
+                              {record.managerName}
+                              {record.endDate === null &&
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-heading font-bold">
+                                  Current
+                                </span>
+                        }
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-body text-gray-700">
+                            {record.assignedByName}
+                          </td>
+                          <td className="px-6 py-4 font-body text-gray-700">
+                            {record.approvedByName}
+                          </td>
+                          <td className="px-6 py-4 font-body text-gray-500">
+                            {record.startDate}
+                          </td>
+                          <td className="px-6 py-4 font-body text-gray-500">
+                            {record.endDate ?? '—'}
+                          </td>
+                          <td className="px-6 py-4 font-body text-gray-500 max-w-[220px] truncate" title={record.comments ?? undefined}>
+                            {record.comments ?? '—'}
+                          </td>
+                        </tr>
+                  )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+          }
+          </motion.div>
+        }
+
+        {activeTab === 'role-assignments' &&
+        <motion.div
+          key="role-assignments"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.2 }}
+          className="space-y-4">
+
+            <div>
+              <h3 className="text-base font-heading font-bold text-gray-900">
+                Role Assignments
+              </h3>
+              <p className="text-sm font-body text-gray-500 mt-0.5">
+                Admins/Approvers proposed to cover this branch — approving here activates their coverage and notifies them.
+              </p>
+            </div>
+
+            <RoleAssignmentApprovalsPanel state={roleAssignmentApprovals} />
+          </motion.div>
+        }
+
+        {activeTab === 'staff-directory' &&
+        <motion.div
+          key="staff-directory"
+          initial={{
+            opacity: 0,
+            y: 8
+          }}
+          animate={{
+            opacity: 1,
+            y: 0
+          }}
+          exit={{
+            opacity: 0,
+            y: -8
+          }}
+          transition={{
+            duration: 0.2
+          }}
+          className="space-y-4">
+
+            <div>
+              <h3 className="text-base font-heading font-bold text-gray-900">
+                Staff Directory
+              </h3>
+              <p className="text-sm font-body text-gray-500 mt-0.5">
+                Every staff member currently assigned to this branch.
+              </p>
+            </div>
+
+            {staffDirectoryLoading && staffDirectory.length === 0 ?
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
+                <UsersIcon size={48} className="text-gray-200 mx-auto mb-4 animate-pulse" />
+                <p className="text-sm font-body text-gray-400">Loading staff directory...</p>
+              </div> :
+          staffDirectory.length === 0 ?
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-12 text-center">
+                <UsersIcon size={48} className="text-gray-200 mx-auto mb-4" />
+                <h4 className="text-base font-heading font-bold text-gray-600">
+                  No Staff Assigned
+                </h4>
+                <p className="text-sm font-body text-gray-400 mt-1">
+                  No staff member is currently assigned to this branch.
+                </p>
+              </div> :
+
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wider font-heading">
+                        <th className="px-6 py-4 font-medium">Employee</th>
+                        <th className="px-6 py-4 font-medium">Role</th>
+                        <th className="px-6 py-4 font-medium">User Type</th>
+                        <th className="px-6 py-4 font-medium">Email</th>
+                        <th className="px-6 py-4 font-medium">Phone</th>
+                        <th className="px-6 py-4 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 text-sm">
+                      {staffDirectory.map((staff) =>
+                  <tr
+                    key={staff.id}
+                    onClick={() => navigate(`/staff-management/${staff.id}`)}
+                    className="hover:bg-gray-50/50 transition-colors cursor-pointer">
+
+                          <td className="px-6 py-4">
+                            <p className="font-heading font-medium text-primary">
+                              {toTitleCase(`${staff.firstName} ${staff.lastName}`.trim()) || 'Unknown Staff'}
+                            </p>
+                            <p className="text-xs text-gray-400">{buildFrontendStaffId(staff.id)}</p>
+                          </td>
+                          <td className="px-6 py-4 text-gray-700">
+                            {STAFF_ROLE_LABEL[staff.role] ?? staff.role}
+                          </td>
+                          <td className="px-6 py-4 text-gray-600">{staff.userType}</td>
+                          <td className="px-6 py-4 text-gray-600">{staff.email}</td>
+                          <td className="px-6 py-4 text-gray-600">{staff.phoneNumber}</td>
+                          <td className="px-6 py-4">
+                            <StatusBadge status={(STAFF_STATUS_LABEL[staff.status] ?? staff.status) as any} />
+                          </td>
+                        </tr>
+                  )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
           }

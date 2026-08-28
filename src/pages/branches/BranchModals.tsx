@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useFormik } from 'formik';
 import {
@@ -15,7 +15,10 @@ import {
   fundBranchSchema } from
 '../../validators/nonAuthSchemas';
 import { ReusableReactSelect, SelectOption } from '../../components/ReusableReactSelect';
-import { api } from '../../app/api';
+import type {
+  BranchBankAccount,
+  BranchBankAccountPurpose,
+} from '../../services/branch-bank-accounts/branch-bank-accounts.service';
 import { useAppSelector } from '../../store/hooks';
 import type { BranchManagerLookup } from '../../store/slices/lookupsSlice';
 export interface BankAccount {
@@ -44,7 +47,6 @@ export interface BranchData {
   city?: string;
   address?: string;
   managerId?: string;
-  organizationId?: string;
   location: string;
   manager: string;
   staff: number;
@@ -137,41 +139,20 @@ const inputClass =
 const selectClass =
 'w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white transition-all';
 
-type OptionItem = {
-  id: string;
-  name: string;
-};
-
-async function fetchStateLgaOptions(stateName: string): Promise<OptionItem[]> {
-  try {
-    const response = await api.get(`/locations/states/${encodeURIComponent(stateName)}/local-governments`);
-    const source = response as {
-      data?: { localGovernments?: unknown };
-      payload?: { localGovernments?: unknown };
-    };
-
-    const lgaList =
-      (Array.isArray(source.data?.localGovernments) ? source.data?.localGovernments : undefined) ??
-      (Array.isArray(source.payload?.localGovernments) ? source.payload?.localGovernments : undefined) ??
-      [];
-
-    return lgaList
-      .filter((item): item is string => typeof item === 'string')
-      .map((name) => ({ id: name, name }));
-  } catch {
-    return [];
-  }
-}
-
+/**
+ * Matches CreateBranchDto exactly (name/code/address) — no city/state/phone/
+ * email, the real Branch schema has none of those, and no `managerId`
+ * either: a branch has no manager field of its own (see
+ * BranchManagerAssignment), and — since branch creation is now
+ * workflow-mediated (see branchesService.create) — the branch doesn't exist
+ * at all until a *different* Admin/SuperAdmin/Approver approves it, so
+ * there's no id yet to assign a manager to. Assigning one is a separate
+ * step via EditBranchModal once the branch is real.
+ */
 export interface CreateBranchPayload {
   name: string;
   code: string;
   address: string;
-  city: string;
-  state: string;
-  phone?: string;
-  email?: string;
-  managerId?: string;
 }
 // ─── Create Branch Modal ─────────────────────────────────────────
 interface CreateBranchModalProps {
@@ -184,98 +165,29 @@ export function CreateBranchModal({
   onClose,
   onSubmit
 }: CreateBranchModalProps) {
-  const lookupStates = useAppSelector((state) => state.lookups.states);
-  const managerStaff = useAppSelector((state) => state.lookups.branchManagers);
-  const allBranches = useAppSelector((state) => state.lookups.branches || []);
-  // Get managerIds already assigned to a branch
-  const assignedManagerIds = new Set(
-    allBranches
-      .map((b: any) => b.managerId)
-      .filter((id: string | undefined) => !!id)
-  );
-  const areLookupsLoading = useAppSelector((state) => state.lookups.loading);
-  const [localGovernments, setLocalGovernments] = useState<OptionItem[]>([]);
-  const [isLoadingLgas, setIsLoadingLgas] = useState(false);
-
   const formik = useFormik({
     initialValues: {
       name: '',
       code: '',
-      state: '',
-      city: '',
       address: '',
-      phone: '',
-      email: '',
-      managerId: ''
     },
     validationSchema: createBranchSchema,
     validateOnMount: true,
     onSubmit: async (values) => {
       await onSubmit({
         name: values.name.trim(),
-        code: values.code.trim()+ Math.floor(100 + Math.random() * 900).toString(),
-        state: values.state,
-        city: values.city,
+        code: values.code.trim(),
         address: values.address.trim(),
-        phone: values.phone.trim() || undefined,
-        email: values.email.trim() || undefined,
-        managerId: values.managerId || undefined,
       });
 
       formik.resetForm();
-      setLocalGovernments([]);
       onClose();
     }
   });
 
-  const stateOptions: SelectOption[] = lookupStates.map((state) => ({ label: state.name, value: state.name }));
-  const lgaOptions: SelectOption[] = localGovernments.map((item) => ({ label: item.name, value: item.name }));
-  const managerOptions: SelectOption[] = managerStaff
-    .filter((staff: BranchManagerLookup) => !assignedManagerIds.has(staff.id))
-    .map((staff: BranchManagerLookup) => ({
-      label: `${staff.fullName} (${staff.email})`,
-      value: staff.id,
-    }));
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const loadBaseOptions = async () => {
-      return;
-    };
-
-    loadBaseOptions();
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!formik.values.state) {
-      setLocalGovernments([]);
-      if (formik.values.city) {
-        formik.setFieldValue('city', '');
-      }
-      return;
-    }
-
-    const loadLgas = async () => {
-      setIsLoadingLgas(true);
-      const lgaOptions = await fetchStateLgaOptions(formik.values.state);
-      setLocalGovernments(lgaOptions);
-      setIsLoadingLgas(false);
-
-      if (formik.values.city) {
-        formik.setFieldValue('city', '');
-      }
-    };
-
-    loadLgas();
-  }, [formik.values.state]);
-
   function handleClose() {
     formik.resetForm();
     formik.setTouched({});
-    setLocalGovernments([]);
     onClose();
   }
 
@@ -294,12 +206,17 @@ export function CreateBranchModal({
         </div>
         <div>
           <h3 className="text-lg font-heading font-bold text-gray-900">
-            Create New Branch
+            Propose New Branch
           </h3>
           <p className="text-xs font-body text-gray-500">
-            Add a new branch to the network
+            Subject to approval by a different Admin, SuperAdmin, or Approver
           </p>
         </div>
+      </div>
+
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-700 mb-4">
+        This proposes a new branch — it only takes effect once a different Admin, SuperAdmin, or Approver approves
+        it. You can assign a manager once it's approved.
       </div>
 
       <form onSubmit={formik.handleSubmit} className="space-y-4" noValidate>
@@ -338,29 +255,6 @@ export function CreateBranchModal({
           </FormField>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <ReusableReactSelect
-            name="state"
-            label="State"
-            formik={formik}
-            options={stateOptions}
-            placeholder="Search and select state"
-            isLoading={areLookupsLoading}
-            helperText={areLookupsLoading ? 'Loading states...' : undefined}
-            noOptionsMessage={areLookupsLoading ? 'Loading states...' : 'No states found'} />
-
-          <ReusableReactSelect
-            name="city"
-            label="LGA"
-            formik={formik}
-            options={lgaOptions}
-            placeholder={formik.values.state ? 'Search and select LGA' : 'Select state first'}
-            isDisabled={!formik.values.state}
-            isLoading={isLoadingLgas}
-            helperText={!formik.values.state ? 'Choose a state first' : isLoadingLgas ? 'Loading LGAs...' : undefined}
-            noOptionsMessage={!formik.values.state ? 'Select a state first' : isLoadingLgas ? 'Loading LGAs...' : 'No LGAs found'} />
-        </div>
-
         <FormField label="Address" required>
           <textarea
             id="address"
@@ -378,62 +272,6 @@ export function CreateBranchModal({
           }
         </FormField>
 
-        <ReusableReactSelect
-          name="managerId"
-          label="Branch Manager (Optional)"
-          formik={formik}
-          options={managerOptions}
-          placeholder="Search and select branch manager"
-          isLoading={areLookupsLoading}
-          helperText={
-            areLookupsLoading
-              ? 'Loading eligible managers...'
-              : managerOptions.length === 0
-                ? 'No branch manager-level staff found'
-                : undefined
-          }
-          noOptionsMessage={
-            areLookupsLoading ? 'Loading managers...' : 'No branch manager staff found'
-          }
-        />
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Phone Number">
-            <input
-              id="phone"
-              name="phone"
-              type="tel"
-              inputMode="numeric"
-              value={formik.values.phone}
-              onChange={(event) => {
-                formik.setFieldValue('phone', event.target.value.replace(/\D/g, ''), true);
-              }}
-              onBlur={formik.handleBlur}
-              placeholder="e.g. 08012345678"
-              className={inputClass} />
-
-            {formik.touched.phone && formik.errors.phone &&
-            <p className="text-xs text-red-600 mt-1">{formik.errors.phone}</p>
-            }
-
-          </FormField>
-          <FormField label="Email Address">
-            <input
-              id="email"
-              name="email"
-              type="email"
-              value={formik.values.email}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              placeholder="branch@bckashmfb.com.ng"
-              className={inputClass} />
-
-            {formik.touched.email && formik.errors.email &&
-            <p className="text-xs text-red-600 mt-1">{formik.errors.email}</p>
-            }
-          </FormField>
-        </div>
-
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
           <button
             type="button"
@@ -444,10 +282,10 @@ export function CreateBranchModal({
           </button>
           <button
             type="submit"
-            disabled={!formik.isValid}
+            disabled={!formik.isValid || formik.isSubmitting}
             className="px-4 py-2 text-sm font-heading font-bold bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
 
-            Create Branch
+            {formik.isSubmitting ? 'Proposing…' : 'Propose Branch'}
           </button>
         </div>
       </form>
@@ -465,66 +303,11 @@ interface EditBranchModalProps {
 export interface EditBranchPayload {
   name: string;
   code: string;
-  state: string;
-  city: string;
   address: string;
   phone?: string;
   email?: string;
   managerId?: string;
   status: 'Active' | 'Inactive';
-}
-
-type ManagerSelectItem = {
-  id: string;
-  fullName: string;
-  email: string;
-  userLevel: string;
-};
-
-function toManagerSelectItem(raw: unknown): ManagerSelectItem | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const source = raw as Record<string, unknown>;
-  const id = source.id ?? source._id;
-  if (typeof id !== 'string') {
-    return null;
-  }
-
-  const firstName = typeof source.firstName === 'string' ? source.firstName.trim() : '';
-  const lastName = typeof source.lastName === 'string' ? source.lastName.trim() : '';
-  const joined = `${firstName} ${lastName}`.trim();
-  const fallbackName =
-    (typeof source.name === 'string' && source.name.trim().length > 0 ? source.name.trim() : '') ||
-    (typeof source.fullName === 'string' && source.fullName.trim().length > 0 ? source.fullName.trim() : '') ||
-    'Branch Manager';
-
-  return {
-    id,
-    fullName: joined || fallbackName,
-    email: typeof source.email === 'string' ? source.email : '',
-    userLevel: typeof source.userLevel === 'string' ? source.userLevel : '',
-  };
-}
-
-async function fetchBranchManagerOptions(): Promise<ManagerSelectItem[]> {
-  try {
-    const response = await api.get('/admin/staff?includeInactive=true');
-    const source = response as { data?: unknown; payload?: unknown; items?: unknown };
-    const list =
-      (Array.isArray(source.data) ? source.data : undefined) ??
-      (Array.isArray(source.payload) ? source.payload : undefined) ??
-      (Array.isArray(source.items) ? source.items : undefined) ??
-      [];
-
-    return list
-      .map(toManagerSelectItem)
-      .filter((item): item is ManagerSelectItem => item !== null)
-      .filter((item) => item.userLevel === 'BranchManager');
-  } catch {
-    return [];
-  }
 }
 
 export function EditBranchModal({
@@ -533,24 +316,17 @@ export function EditBranchModal({
   branch,
   onSubmit
 }: EditBranchModalProps) {
-  const lookupStates = useAppSelector((state) => state.lookups.states);
   const managerStaff = useAppSelector((state) => state.lookups.branchManagers);
   const areLookupsLoading = useAppSelector((state) => state.lookups.loading);
-  const [localGovernments, setLocalGovernments] = useState<OptionItem[]>([]);
-  const [isLoadingLgas, setIsLoadingLgas] = useState(false);
-  const [eligibleManagers, setEligibleManagers] = useState<ManagerSelectItem[]>([]);
-  const [isLoadingManagers, setIsLoadingManagers] = useState(false);
 
   const formik = useFormik({
     initialValues: {
       name: '',
       code: '',
-      state: '',
-      city: '',
       address: '',
-      managerId: '',
       phone: '',
       email: '',
+      managerId: '',
       status: 'Active',
     },
     validationSchema: editBranchSchema,
@@ -561,8 +337,6 @@ export function EditBranchModal({
       onSubmit(branch.id, {
         name: values.name.trim(),
         code: values.code.trim(),
-        state: values.state,
-        city: values.city,
         address: values.address.trim(),
         phone: values.phone.trim() || undefined,
         email: values.email.trim() || undefined,
@@ -574,8 +348,6 @@ export function EditBranchModal({
     }
   });
 
-  const stateOptions: SelectOption[] = lookupStates.map((state) => ({ label: state.name, value: state.name }));
-  const lgaOptions: SelectOption[] = localGovernments.map((item) => ({ label: item.name, value: item.name }));
   const allBranches = useAppSelector((state) => state.lookups.branches || []);
   const assignedManagerIds = new Set(
     allBranches
@@ -583,17 +355,14 @@ export function EditBranchModal({
       .map((b: any) => b.managerId)
       .filter((id: string | undefined) => !!id)
   );
-  const fallbackManagers = managerStaff
-    .filter((staff: BranchManagerLookup) => staff.userLevel === 'BranchManager' && !assignedManagerIds.has(staff.id))
-    .map((staff: BranchManagerLookup) => ({
-      id: staff.id,
-      fullName: staff.fullName,
-      email: staff.email,
-      userLevel: staff.userLevel,
-    }));
-  const managerSource = eligibleManagers.length > 0
-    ? eligibleManagers.filter((staff) => !assignedManagerIds.has(staff.id) || staff.id === branch?.managerId)
-    : fallbackManagers;
+  // `managerStaff` (lookups.branchManagers) is already scoped to ACTIVE
+  // MANAGER-role staff — see toBranchManagerLookup in lookupsSlice.ts.
+  // A manager already assigned to a *different* branch is excluded; the one
+  // currently assigned to *this* branch stays selectable (re-selecting it
+  // shouldn't require unassigning it first).
+  const managerSource = managerStaff.filter(
+    (staff: BranchManagerLookup) => !assignedManagerIds.has(staff.id) || staff.id === branch?.managerId,
+  );
   const managerOptions: SelectOption[] = managerSource.map((staff) => ({
     label: `${staff.fullName} (${staff.email})`,
     value: staff.id,
@@ -604,56 +373,18 @@ export function EditBranchModal({
       formik.setValues({
         name: branch.name,
         code: branch.code || '',
-        state: branch.state || '',
-        city: branch.city || '',
         address: branch.address || '',
+        phone: branch.phone || '',
+        email: branch.email || '',
         managerId: branch.managerId || '',
-        phone: branch.phone,
-        email: branch.email,
         status: branch.status === 'Active' ? 'Active' : 'Inactive',
       });
       formik.setTouched({});
     }
   }, [branch]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const loadBaseOptions = async () => {
-      setIsLoadingManagers(true);
-      const managers = await fetchBranchManagerOptions();
-      setEligibleManagers(managers);
-      setIsLoadingManagers(false);
-    };
-
-    loadBaseOptions();
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!formik.values.state) {
-      setLocalGovernments([]);
-      return;
-    }
-
-    const loadLgas = async () => {
-      setIsLoadingLgas(true);
-      const lgas = await fetchStateLgaOptions(formik.values.state);
-      setLocalGovernments(lgas);
-      setIsLoadingLgas(false);
-
-      if (formik.values.city && !lgas.some((item) => item.name === formik.values.city)) {
-        formik.setFieldValue('city', '');
-      }
-    };
-
-    loadLgas();
-  }, [formik.values.state]);
-
   function handleClose() {
     formik.resetForm();
-    setLocalGovernments([]);
     onClose();
   }
 
@@ -716,29 +447,6 @@ export function EditBranchModal({
           </FormField>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <ReusableReactSelect
-            name="state"
-            label="State"
-            formik={formik}
-            options={stateOptions}
-            placeholder="Search and select state"
-            isLoading={areLookupsLoading}
-            helperText={areLookupsLoading ? 'Loading states...' : undefined}
-            noOptionsMessage={areLookupsLoading ? 'Loading states...' : 'No states found'} />
-
-          <ReusableReactSelect
-            name="city"
-            label="LGA"
-            formik={formik}
-            options={lgaOptions}
-            placeholder={formik.values.state ? 'Search and select LGA' : 'Select state first'}
-            isDisabled={!formik.values.state}
-            isLoading={isLoadingLgas}
-            helperText={!formik.values.state ? 'Choose a state first' : isLoadingLgas ? 'Loading LGAs...' : undefined}
-            noOptionsMessage={!formik.values.state ? 'Select a state first' : isLoadingLgas ? 'Loading LGAs...' : 'No LGAs found'} />
-        </div>
-
         <FormField label="Address" required>
           <textarea
             id="address"
@@ -756,23 +464,55 @@ export function EditBranchModal({
         </FormField>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField label="Phone Number">
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              inputMode="numeric"
+              value={formik.values.phone}
+              onChange={(e) => formik.setFieldValue('phone', e.target.value.replace(/\D/g, '').slice(0, 11))}
+              onBlur={formik.handleBlur}
+              placeholder="08000000000"
+              className={inputClass} />
+
+            {formik.touched.phone && formik.errors.phone &&
+            <p className="text-xs text-red-600 mt-1">{formik.errors.phone}</p>
+            }
+          </FormField>
+          <FormField label="Email">
+            <input
+              id="email"
+              name="email"
+              type="email"
+              value={formik.values.email}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              placeholder="branch@bckash.com"
+              className={inputClass} />
+
+            {formik.touched.email && formik.errors.email &&
+            <p className="text-xs text-red-600 mt-1">{formik.errors.email}</p>
+            }
+          </FormField>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ReusableReactSelect
             name="managerId"
             label="Branch Manager (Optional)"
             formik={formik}
             options={managerOptions}
             placeholder="Search and select branch manager"
-            isLoading={areLookupsLoading || isLoadingManagers}
+            isLoading={areLookupsLoading}
             helperText={
-              areLookupsLoading || isLoadingManagers
+              areLookupsLoading
                 ? 'Loading eligible managers...'
                 : managerOptions.length === 0
                   ? 'No branch manager-level staff found'
                   : undefined
             }
-            noOptionsMessage={
-              areLookupsLoading || isLoadingManagers ? 'Loading managers...' : 'No branch manager staff found'
-            }
+            noOptionsMessage={areLookupsLoading ? 'Loading managers...' : 'No branch manager staff found'}
           />
 
           <FormField label="Status">
@@ -783,46 +523,10 @@ export function EditBranchModal({
               onChange={formik.handleChange}
               onBlur={formik.handleBlur}
               className={selectClass}>
-              
+
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
             </select>
-          </FormField>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Phone Number">
-            <input
-              id="phone"
-              name="phone"
-              type="tel"
-              inputMode="numeric"
-              value={formik.values.phone}
-              onChange={(event) => {
-                formik.setFieldValue('phone', event.target.value.replace(/\D/g, ''), true);
-              }}
-              onBlur={formik.handleBlur}
-              className={inputClass} />
-
-            {formik.touched.phone && formik.errors.phone &&
-            <p className="text-xs text-red-600 mt-1">{formik.errors.phone}</p>
-            }
-            
-          </FormField>
-          <FormField label="Email Address">
-            <input
-              id="email"
-              name="email"
-              type="email"
-              value={formik.values.email}
-              onChange={formik.handleChange}
-              onBlur={formik.handleBlur}
-              className={inputClass} />
-
-            {formik.touched.email && formik.errors.email &&
-            <p className="text-xs text-red-600 mt-1">{formik.errors.email}</p>
-            }
-            
           </FormField>
         </div>
 
@@ -851,58 +555,60 @@ interface FundBranchModalProps {
   isOpen: boolean;
   onClose: () => void;
   branch: BranchData | null;
+  /** The branch's currently-active bank account (at most one — see BranchBankAccountsService). null until one exists, which blocks submission entirely. */
+  activeBankAccount: BranchBankAccount | null;
+  /** Matches RecordBranchFundingDto — amountKobo is already ×100'd from the form's naira input. */
   onSubmit: (
-    id: string,
-    amount: number,
+    branchId: string,
     bankAccountId: string,
-    transactionReference: string,
-    note: string,
+    amountKobo: number,
+    fundedAt: string,
+    reference: string,
   ) => Promise<void> | void;
 }
 export function FundBranchModal({
   isOpen,
   onClose,
   branch,
+  activeBankAccount,
   onSubmit
 }: FundBranchModalProps) {
+  const todayIso = () => new Date().toISOString().split('T')[0];
+
   const formik = useFormik({
     initialValues: {
-      amount: '',
       bankAccountId: '',
-      transactionReference: '',
-      note: ''
+      amount: '',
+      fundedAt: todayIso(),
+      reference: '',
     },
     validationSchema: fundBranchSchema,
     validateOnMount: true,
     onSubmit: async (values) => {
-      if (!branch) return;
+      if (!branch || !values.bankAccountId) return;
 
-      const numAmount = parseInt(values.amount.replace(/,/g, ''), 10);
+      const amountKobo = Math.round(parseFloat(values.amount.replace(/,/g, '')) * 100);
       await onSubmit(
         branch.id,
-        numAmount,
         values.bankAccountId,
-        values.transactionReference.trim(),
-        values.note.trim(),
+        amountKobo,
+        new Date(values.fundedAt).toISOString(),
+        values.reference.trim(),
       );
-      formik.resetForm();
+      formik.resetForm({ values: { bankAccountId: '', amount: '', fundedAt: todayIso(), reference: '' } });
       onClose();
     }
   });
 
   useEffect(() => {
-    if (!branch || !isOpen) {
-      return;
+    if (isOpen) {
+      formik.setFieldValue('bankAccountId', activeBankAccount?.id ?? '', true);
     }
-
-    if (branch.bankAccounts.length > 0 && !formik.values.bankAccountId) {
-      const current = branch.bankAccounts.find((item) => item.isCurrent);
-      formik.setFieldValue('bankAccountId', (current ?? branch.bankAccounts[0]).id);
-    }
-  }, [branch, formik, isOpen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, activeBankAccount]);
 
   function handleClose() {
-    formik.resetForm();
+    formik.resetForm({ values: { bankAccountId: '', amount: '', fundedAt: todayIso(), reference: '' } });
     onClose();
   }
   return (
@@ -910,7 +616,7 @@ export function FundBranchModal({
       <button
         onClick={handleClose}
         className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
-        
+
         <XIcon size={18} />
       </button>
 
@@ -920,7 +626,7 @@ export function FundBranchModal({
         </div>
         <div>
           <h3 className="text-lg font-heading font-bold text-gray-900">
-            Fund Allocation
+            Record Fund Allocation
           </h3>
           <p className="text-xs font-body text-gray-500">{branch?.name}</p>
         </div>
@@ -947,8 +653,28 @@ export function FundBranchModal({
         </div>
       }
 
+      {activeBankAccount ? (
+        <div className="rounded-lg border border-gray-200 px-4 py-3 mb-4">
+          <p className="text-xs font-body text-gray-400 mb-1">Funding will be recorded against</p>
+          <p className="text-sm font-heading font-bold text-gray-800">
+            {activeBankAccount.bankName} · {activeBankAccount.accountNumber}
+          </p>
+          <p className="text-xs font-body text-gray-500">{activeBankAccount.accountName}</p>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700 mb-4">
+          This branch has no active bank account yet — add one (or mark an existing one active) before it can be
+          funded.
+        </div>
+      )}
+
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-700 mb-4">
+        This records head-office funding — it doesn't touch the branch's balance yet. The branch's own current
+        manager must verify it before the amount becomes available for disbursement.
+      </div>
+
       <form onSubmit={formik.handleSubmit} className="space-y-4" noValidate>
-        <FormField label="Amount to Allocate" required>
+        <FormField label="Amount" required>
           <div className="relative">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-body">
               ₦
@@ -972,58 +698,39 @@ export function FundBranchModal({
           </div>
         </FormField>
 
-        <FormField label="Funding Note / Reference">
-          <select
-            id="bankAccountId"
-            name="bankAccountId"
-            value={formik.values.bankAccountId}
-            onChange={formik.handleChange}
-            onBlur={formik.handleBlur}
-            className={selectClass}
-            required
-          >
-            <option value="">Select destination bank account...</option>
-            {(branch?.bankAccounts ?? []).map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.bankName} • {account.accountNumber} ({account.accountName})
-              </option>
-            ))}
-          </select>
-
-          {formik.touched.bankAccountId && (formik.errors as Record<string, string>).bankAccountId &&
-            <p className="text-xs text-red-600 mt-1">{(formik.errors as Record<string, string>).bankAccountId}</p>
-          }
-        </FormField>
-
-        <FormField label="Transaction Reference" required>
+        <FormField label="Funded Date" required>
           <input
-            id="transactionReference"
-            name="transactionReference"
-            type="text"
-            value={formik.values.transactionReference}
+            id="fundedAt"
+            name="fundedAt"
+            type="date"
+            value={formik.values.fundedAt}
             onChange={formik.handleChange}
             onBlur={formik.handleBlur}
-            placeholder="e.g. NIP-78456392011"
+            max={todayIso()}
             className={inputClass}
             required
           />
 
-          {formik.touched.transactionReference && (formik.errors as Record<string, string>).transactionReference &&
-            <p className="text-xs text-red-600 mt-1">{(formik.errors as Record<string, string>).transactionReference}</p>
+          {formik.touched.fundedAt && formik.errors.fundedAt &&
+            <p className="text-xs text-red-600 mt-1">{formik.errors.fundedAt}</p>
           }
         </FormField>
 
-        <FormField label="Funding Note / Comment">
-          <textarea
-            id="note"
-            name="note"
-            value={formik.values.note}
+        <FormField label="Reference (Optional)">
+          <input
+            id="reference"
+            name="reference"
+            type="text"
+            value={formik.values.reference}
             onChange={formik.handleChange}
             onBlur={formik.handleBlur}
-            placeholder="e.g. Q3 2026 fund allocation"
-            rows={3}
-            className={`${inputClass} resize-none`} />
-          
+            placeholder="e.g. NIP-78456392011 or Q3 2026 allocation"
+            className={inputClass}
+          />
+
+          {formik.touched.reference && formik.errors.reference &&
+            <p className="text-xs text-red-600 mt-1">{formik.errors.reference}</p>
+          }
         </FormField>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
@@ -1031,31 +738,40 @@ export function FundBranchModal({
             type="button"
             onClick={handleClose}
             className="px-4 py-2 text-sm font-heading font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-            
+
             Cancel
           </button>
           <button
             type="submit"
-            disabled={!formik.isValid || (branch?.bankAccounts.length ?? 0) === 0 || !formik.values.bankAccountId}
+            disabled={!formik.isValid || !activeBankAccount || formik.isSubmitting}
             className="px-4 py-2 text-sm font-heading font-bold bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            
-            Allocate Funds
+
+            {formik.isSubmitting ? 'Funding…' : 'Record Funding'}
           </button>
         </div>
-        {branch && branch.bankAccounts.length === 0 &&
-          <p className="text-xs text-amber-600">Add a branch bank account before allocating funds.</p>
-        }
       </form>
     </ModalWrapper>);
 
 }
 // ─── Add Bank Account Modal ─────────────────────────────────────
+export interface AddBankAccountFormValues {
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  purpose: BranchBankAccountPurpose;
+  isCurrent: boolean;
+}
 interface AddBankAccountModalProps {
   isOpen: boolean;
   onClose: () => void;
   branchName: string;
-  onSubmit: (data: Omit<BankAccount, 'id' | 'dateAdded'>) => Promise<void> | void;
+  onSubmit: (data: AddBankAccountFormValues) => Promise<void> | void;
 }
+const BANK_ACCOUNT_PURPOSE_OPTIONS: { value: BranchBankAccountPurpose; label: string }[] = [
+  { value: 'GENERAL', label: 'General' },
+  { value: 'REPAYMENT_COLLECTION', label: 'Repayment Collection' },
+  { value: 'DISBURSEMENT_SOURCE', label: 'Disbursement Source' },
+];
 export function AddBankAccountModal({
   isOpen,
   onClose,
@@ -1067,6 +783,7 @@ export function AddBankAccountModal({
       bankName: '',
       accountNumber: '',
       accountName: '',
+      purpose: 'GENERAL' as BranchBankAccountPurpose,
       isCurrent: true
     },
     validationSchema: addBankAccountSchema,
@@ -1076,6 +793,7 @@ export function AddBankAccountModal({
         bankName: values.bankName.trim(),
         accountNumber: values.accountNumber.trim(),
         accountName: values.accountName.trim(),
+        purpose: values.purpose,
         isCurrent: values.isCurrent
       });
       formik.resetForm();
@@ -1181,15 +899,37 @@ export function AddBankAccountModal({
           </FormField>
         </div>
 
+        <FormField label="Purpose" required>
+          <select
+            id="purpose"
+            name="purpose"
+            value={formik.values.purpose}
+            onChange={formik.handleChange}
+            onBlur={formik.handleBlur}
+            className={selectClass}
+            required>
+
+            {BANK_ACCOUNT_PURPOSE_OPTIONS.map((option) =>
+            <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            )}
+          </select>
+
+          {formik.touched.purpose && formik.errors.purpose &&
+          <p className="text-xs text-red-600 mt-1">{formik.errors.purpose}</p>
+          }
+        </FormField>
+
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             checked={formik.values.isCurrent}
             onChange={(e) => formik.setFieldValue('isCurrent', e.target.checked)}
             className="rounded text-primary focus:ring-primary" />
-          
+
           <span className="text-sm font-body text-gray-700">
-            Set as current (primary) account
+            Set as active account
           </span>
         </label>
 

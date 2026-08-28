@@ -1,13 +1,40 @@
-import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { CheckCircle2Icon, ChevronRightIcon, PlusIcon, UploadCloudIcon, XIcon } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  AlertCircleIcon,
+  CheckCircle2Icon,
+  ChevronRightIcon,
+  FileTextIcon,
+  LoaderIcon,
+  PlusIcon,
+  ShieldCheckIcon,
+  UploadCloudIcon,
+  XCircleIcon,
+  XIcon,
+} from 'lucide-react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { api } from '../../app/api';
 import { ReusableReactSelect, SelectOption } from '../../components/ReusableReactSelect';
+import { GENDER_OPTIONS, ID_TYPE_OPTIONS, STAFF_ROLE_LABEL, STAFF_ROLE_OPTIONS } from '../../constants/identity-options';
 import { useAuth } from '../../context/AuthContext';
+import type { StaffUserType } from '../../services/auth/auth.types';
+import { departmentsService } from '../../services/departments/departments.service';
+import { referenceDataService } from '../../services/reference-data/reference-data.service';
+import { unitsService } from '../../services/units/units.service';
+import {
+  staffService,
+  type BvnPreview,
+  type Gender,
+  type IdentificationType,
+  type InitiateStaffOnboardingPayload,
+  type OnboardableStaffRole,
+} from '../../services/staff/staff.service';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { hydrateLookups, markLookupsStale, upsertBranchManager } from '../../store/slices/lookupsSlice';
+import { hydrateLookups, markLookupsStale } from '../../store/slices/lookupsSlice';
+
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB — matches the backend's UPLOAD_MAX_FILE_SIZE default.
+const PASSPORT_PHOTO_MIME_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+const ID_DOCUMENT_MIME_TYPES = [...PASSPORT_PHOTO_MIME_TYPES, 'application/pdf'];
 
 type OptionItem = {
   id: string;
@@ -24,7 +51,8 @@ type StaffOnboardingValues = {
   city: string;
   address: string;
   departmentId: string;
-  staffLevel: string;
+  role: string;
+  userType: string;
   roleId: string;
   branchId: string;
   startDate: string;
@@ -58,7 +86,8 @@ const initialValues: StaffOnboardingValues = {
   city: '',
   address: '',
   departmentId: '',
-  staffLevel: '',
+  role: '',
+  userType: '',
   roleId: '',
   branchId: '',
   startDate: '',
@@ -76,7 +105,7 @@ const initialValues: StaffOnboardingValues = {
 };
 
 const numericPhoneRule = Yup.string()
-  .matches(/^\d{7,15}$/, 'Phone number must be 7-15 digits')
+  .matches(/^\d{11}$/, 'Phone number must be exactly 11 digits')
   .required('Phone number is required');
 
 const fullSchema = Yup.object({
@@ -89,7 +118,8 @@ const fullSchema = Yup.object({
   city: Yup.string().trim().required('City is required'),
   address: Yup.string().trim().required('Address is required'),
   departmentId: Yup.string().required('Department is required'),
-  staffLevel: Yup.string().required('Staff level is required'),
+  role: Yup.string().required('Role is required'),
+  userType: Yup.string().required('User type is required'),
   roleId: Yup.string().required('Role is required'),
   branchId: Yup.string().required('Branch is required'),
   startDate: Yup.string().required('Start date is required'),
@@ -108,7 +138,7 @@ const fullSchema = Yup.object({
 
 const stepFieldMap: Record<number, Array<keyof StaffOnboardingValues>> = {
   1: ['fullName', 'email', 'phoneNumber', 'dateOfBirth', 'gender', 'state', 'city', 'address'],
-  2: ['departmentId', 'staffLevel', 'roleId', 'branchId', 'startDate'],
+  2: ['departmentId', 'role', 'userType', 'roleId', 'branchId', 'startDate'],
   3: [
     'bvn',
     'idType',
@@ -125,113 +155,53 @@ const stepFieldMap: Record<number, Array<keyof StaffOnboardingValues>> = {
   4: [],
 };
 
-const fallbackDepartments: OptionItem[] = [
-  { id: 'operations', name: 'Operations' },
-  { id: 'credit-risk', name: 'Credit & Risk' },
-  { id: 'customer-service', name: 'Customer Service' },
-];
-
-const fallbackRolesByDepartment: Record<string, OptionItem[]> = {
-  operations: [
-    { id: 'branch-manager', name: 'Branch Manager' },
-    { id: 'loan-officer', name: 'Loan Officer' },
-  ],
-  'credit-risk': [
-    { id: 'credit-analyst', name: 'Credit Analyst' },
-    { id: 'compliance-officer', name: 'Compliance Officer' },
-  ],
-  'customer-service': [{ id: 'customer-service-rep', name: 'Customer Service Rep' }],
-};
-
-const fallbackBranches: OptionItem[] = [
-  { id: 'ikeja', name: 'Ikeja Branch' },
-  { id: 'surulere', name: 'Surulere Branch' },
-  { id: 'mushin', name: 'Mushin Branch' },
-  { id: 'head-office', name: 'Head Office' },
-];
-
-const genderOptions: SelectOption[] = [
-  { label: 'Male', value: 'Male' },
-  { label: 'Female', value: 'Female' },
-];
-
-const staffLevelOptions: SelectOption[] = [
-  { label: 'Super Admin', value: 'SuperAdmin' },
-  { label: 'Branch Manager', value: 'BranchManager' },
-  { label: 'Marketer', value: 'Marketer' },
+/**
+ * A staff member's function in an approval chain — independent of `role`,
+ * matches backend `StaffUserType` verbatim (see
+ * backashbackend/src/common/enums/identity.enums.ts). This is the value
+ * that actually gets posted to the API as `userType`.
+ *
+ * Real access control now (Initiator/Authorizer RBAC), not just a label: an
+ * Initiator-flagged staff member can only ever initiate workflow requests
+ * (raise a customer/loan/staff proposal, ...); an Authorizer-flagged one can
+ * only ever review/approve them. "Reviewer" is deliberately NOT offered here
+ * — it's a legacy value the backend only ever backfills onto a record that
+ * pre-dates this feature (StaffService.resolveUserType rejects it as a new
+ * value outright), so it's never a real choice for a new staff member.
+ */
+const userTypeOptions: SelectOption[] = [
+  { label: 'Initiator', value: 'Initiator' },
   { label: 'Authorizer', value: 'Authorizer' },
-];
-
-const idTypeOptions: SelectOption[] = [
-  { label: 'NIN (National ID)', value: 'NIN' },
-  { label: 'International Passport', value: 'Passport' },
-  { label: "Driver's License", value: 'DriversLicense' },
-  { label: "Voter's Card", value: 'VotersCard' },
 ];
 
 function normalizeName(input: string): string {
   return input.trim().toLowerCase();
 }
 
-function extractItem<T>(response: unknown): T | null {
-  if (!response || typeof response !== 'object') {
-    return null;
+function validateUploadFile(file: File, allowedMimeTypes: string[]): string | null {
+  if (!allowedMimeTypes.includes(file.type)) {
+    return `Unsupported file type (${file.type || 'unknown'}).`;
   }
-
-  const source = response as { data?: T; payload?: T; item?: T };
-
-  if (source.data && !Array.isArray(source.data)) {
-    return source.data;
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return `File is too large — max ${Math.round(MAX_UPLOAD_BYTES / (1024 * 1024))}MB.`;
   }
-
-  if (source.payload && !Array.isArray(source.payload)) {
-    return source.payload;
-  }
-
-  if (source.item && !Array.isArray(source.item)) {
-    return source.item;
-  }
-
   return null;
 }
 
-function mapCreatedBranchManager(raw: unknown) {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const source = raw as Record<string, unknown>;
-  const id = source.id ?? source._id;
-  const firstName = source.firstName;
-  const lastName = source.lastName;
-  const email = source.email;
-  const userLevel = source.userLevel;
-
-  if (
-    (typeof id !== 'string' && typeof id !== 'number') ||
-    typeof firstName !== 'string' ||
-    typeof lastName !== 'string' ||
-    typeof email !== 'string' ||
-    typeof userLevel !== 'string'
-  ) {
-    return null;
-  }
-
-  if (userLevel.toLowerCase() !== 'branchmanager') {
-    return null;
-  }
-
-  return {
-    id: String(id),
-    fullName: `${firstName} ${lastName}`.trim(),
-    email,
-    userLevel,
-  };
-}
-
 export function StaffOnboarding() {
-  const { user, token } = useAuth();
   const dispatch = useAppDispatch();
+  const { user } = useAuth();
+  // Proposing an ADMIN/APPROVER account is Admin/SuperAdmin only — enforced
+  // server-side too (see StaffService.initiateOnboarding's own doc
+  // comment), hidden here so a Manager never even sees the option.
+  const canOnboardAdminTier = user?.role === 'admin' || user?.role === 'super_admin';
+  const staffRoleOptions = useMemo(
+    () =>
+      canOnboardAdminTier
+        ? STAFF_ROLE_OPTIONS
+        : STAFF_ROLE_OPTIONS.filter((option) => option.value !== 'ADMIN' && option.value !== 'APPROVER'),
+    [canOnboardAdminTier],
+  );
   const [step, setStep] = useState(1);
   const [cities, setCities] = useState<OptionItem[]>([]);
   const [isLoadingCities, setIsLoadingCities] = useState(false);
@@ -245,6 +215,60 @@ export function StaffOnboarding() {
   const [roleForm, setRoleForm] = useState({ name: '', description: '', departmentId: '' });
   const [modalError, setModalError] = useState<string | null>(null);
   const [inlineCreateSuccess, setInlineCreateSuccess] = useState<string | null>(null);
+  const [bvnModalOpen, setBvnModalOpen] = useState(false);
+  const [isVerifyingBvn, setIsVerifyingBvn] = useState(false);
+  const [bvnPreview, setBvnPreview] = useState<BvnPreview | null>(null);
+  const [bvnPreviewError, setBvnPreviewError] = useState<string | null>(null);
+  const [bvnPreviewConfirmed, setBvnPreviewConfirmed] = useState(false);
+  const [passportPhotoFile, setPassportPhotoFile] = useState<File | null>(null);
+  const [idDocumentFile, setIdDocumentFile] = useState<File | null>(null);
+  const [passportPhotoError, setPassportPhotoError] = useState<string | null>(null);
+  const [idDocumentError, setIdDocumentError] = useState<string | null>(null);
+  const [passportPhotoPreviewUrl, setPassportPhotoPreviewUrl] = useState<string | null>(null);
+  const passportPhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const idDocumentInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Revoke the previous object URL whenever the photo changes (or the page
+  // unmounts) — otherwise every re-selection leaks the last one.
+  useEffect(() => {
+    if (!passportPhotoFile) {
+      setPassportPhotoPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(passportPhotoFile);
+    setPassportPhotoPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [passportPhotoFile]);
+
+  const selectPassportPhoto = (file: File | null) => {
+    if (!file) {
+      setPassportPhotoFile(null);
+      setPassportPhotoError(null);
+      return;
+    }
+    const error = validateUploadFile(file, PASSPORT_PHOTO_MIME_TYPES);
+    if (error) {
+      setPassportPhotoError(error);
+      return;
+    }
+    setPassportPhotoError(null);
+    setPassportPhotoFile(file);
+  };
+
+  const selectIdDocument = (file: File | null) => {
+    if (!file) {
+      setIdDocumentFile(null);
+      setIdDocumentError(null);
+      return;
+    }
+    const error = validateUploadFile(file, ID_DOCUMENT_MIME_TYPES);
+    if (error) {
+      setIdDocumentError(error);
+      return;
+    }
+    setIdDocumentError(null);
+    setIdDocumentFile(file);
+  };
 
   const storeStates = useAppSelector((state) => state.lookups.states);
   const storeDepartments = useAppSelector((state) => state.lookups.departments);
@@ -260,19 +284,17 @@ export function StaffOnboarding() {
     return [];
   }, [storeStates]);
 
-  const departments = useMemo<OptionItem[]>(() => {
-    if (storeDepartments.length > 0) {
-      return storeDepartments.map((department) => ({ id: department.id, name: department.name }));
-    }
-    return fallbackDepartments;
-  }, [storeDepartments]);
+  // Pre-saved at login (see hydrateLookups/lookupsSlice) — no local fallback
+  // data; if the store is empty, the dropdown is empty until it loads.
+  const departments = useMemo<OptionItem[]>(
+    () => storeDepartments.map((department) => ({ id: department.id, name: department.name })),
+    [storeDepartments],
+  );
 
-  const branches = useMemo<OptionItem[]>(() => {
-    if (storeBranches.length > 0) {
-      return storeBranches.map((branch) => ({ id: branch.id, name: branch.name }));
-    }
-    return fallbackBranches;
-  }, [storeBranches]);
+  const branches = useMemo<OptionItem[]>(
+    () => storeBranches.map((branch) => ({ id: branch.id, name: branch.name })),
+    [storeBranches],
+  );
 
   const formik = useFormik<StaffOnboardingValues>({
     initialValues,
@@ -280,54 +302,93 @@ export function StaffOnboarding() {
     validateOnBlur: true,
     validateOnChange: false,
     onSubmit: async (values) => {
-      setSubmissionMessage(null);
-      setSubmissionError(null);
-
-      if (!resolvedOrganizationId) {
-        setSubmissionError('Organization ID is missing in your session. Please log in again as a Super Admin.');
+      // Guards against a real React footgun: the "Continue" (type="button")
+      // and "Submit Registration" (type="submit") buttons below sit in the
+      // same JSX slot of a step<4 ? ... : ... ternary, so React reuses the
+      // same DOM node across the step 3->4 transition rather than
+      // unmounting/remounting it (see the `key`s added to each — that's the
+      // actual fix). Without this guard, clicking "Continue" on step 3
+      // could flip that node's `type` attribute to "submit" mid-click,
+      // causing the browser to submit the form as part of that very click
+      // — creating the staff profile before Review was ever seen, let
+      // alone "Submit Registration" clicked. Kept as defense-in-depth even
+      // with the key fix in place.
+      if (step !== 4) {
         return;
       }
 
-      const payload = {
-        fullName: values.fullName.trim(),
+      setSubmissionMessage(null);
+      setSubmissionError(null);
+
+      // The form only has a single "Full Name" field, but the API wants
+      // firstName/lastName separately — best-effort split on the first
+      // space. (A dedicated last-name field would be more correct; this is
+      // a pragmatic stopgap, not a redesign of the Personal Info step.)
+      const trimmedFullName = values.fullName.trim();
+      const [firstName, ...rest] = trimmedFullName.split(/\s+/);
+      const lastName = rest.length > 0 ? rest.join(' ') : firstName;
+
+      const payload: InitiateStaffOnboardingPayload = {
+        role: values.role as OnboardableStaffRole,
+        firstName,
+        lastName,
         email: values.email.trim().toLowerCase(),
-        organizationId: resolvedOrganizationId,
         phoneNumber: values.phoneNumber.trim(),
-        dateOfBirth: values.dateOfBirth,
-        gender: values.gender,
-        state: values.state.trim(),
-        city: values.city.trim(),
-        address: values.address.trim(),
+        userType: values.userType as StaffUserType,
         departmentId: values.departmentId,
-        roleId: values.roleId,
+        // The "Role" field (values.roleId) is really an org-structure Unit —
+        // see lookupsSlice's own note on why it's still called `roles`/`roleId`
+        // on the frontend; the API field is `unitId`.
+        unitId: values.roleId,
         branchId: values.branchId,
-        staffLevel: values.staffLevel,
-        userType: 'None',
+        // No module-access (LOANS/ACCOUNTING/HR) picker in this form yet —
+        // defaults to none, grantable later via RBAC.
+        moduleAccess: [],
         startDate: values.startDate,
-        bvn: values.bvn.trim(),
-        idType: values.idType,
-        idNumber: values.idNumber.trim(),
-        nokName: values.nokName.trim(),
-        nokRelationship: values.nokRelationship.trim(),
-        nokPhone: values.nokPhone.trim(),
-        nokAddress: values.nokAddress.trim(),
-        referenceName: values.referenceName.trim(),
-        referenceRelationship: values.referenceRelationship.trim(),
-        referencePhone: values.referencePhone.trim(),
-        referenceAddress: values.referenceAddress.trim(),
+        bvn: values.bvn.trim() || undefined,
+        residentialAddress: {
+          // values.state/.city are ids (see stateOptions/cityOptions) — the
+          // API wants the display name, resolved here against the
+          // pre-saved states/cities lookups.
+          state: selectedState?.name ?? '',
+          city: selectedCity?.name ?? '',
+          street: values.address.trim(),
+        },
+        kyc: {
+          dateOfBirth: values.dateOfBirth,
+          gender: values.gender as Gender,
+          idType: values.idType as IdentificationType,
+          idNumber: values.idNumber.trim(),
+        },
+        nextOfKin: {
+          name: values.nokName.trim(),
+          relationship: values.nokRelationship.trim(),
+          phoneNumber: values.nokPhone.trim(),
+          address: values.nokAddress.trim(),
+        },
+        reference: {
+          name: values.referenceName.trim(),
+          relationship: values.referenceRelationship.trim(),
+          phoneNumber: values.referencePhone.trim(),
+          address: values.referenceAddress.trim(),
+        },
+        passportPhoto: passportPhotoFile ?? undefined,
+        idDocument: idDocumentFile ?? undefined,
       };
 
       try {
-        const response = await api.post('/users', payload);
-        const createdRaw = extractItem<unknown>(response);
-        const createdBranchManager = mapCreatedBranchManager(createdRaw);
-        if (createdBranchManager) {
-          dispatch(upsertBranchManager(createdBranchManager));
-        }
+        // Workflow-mediated (Branch Managers onboard Marketers) — this
+        // creates a WorkflowRequest pending Admin/Approver approval, not a
+        // live Staff record; credentials go out by email once approved.
+        await staffService.onboard(payload);
 
-        setSubmissionMessage('Staff registration submitted successfully. Login credentials will be sent by email.');
+        setSubmissionMessage(
+          'Staff onboarding request submitted for approval. Login credentials will be emailed once approved.',
+        );
         formik.resetForm();
         setCities([]);
+        selectPassportPhoto(null);
+        selectIdDocument(null);
         setStep(1);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to submit staff registration';
@@ -349,14 +410,26 @@ export function StaffOnboarding() {
     [branches, formik.values.branchId],
   );
 
+  // `formik.values.state`/`.city` hold ids (same convention as
+  // departmentId/roleId/branchId below) — the human-readable name for the
+  // submission payload/review step is resolved via selectedState/selectedCity.
   const stateOptions: SelectOption[] = useMemo(
-    () => states.map((stateItem) => ({ label: stateItem.name, value: stateItem.name })),
+    () => states.map((stateItem) => ({ label: stateItem.name, value: stateItem.id })),
     [states],
   );
 
   const cityOptions: SelectOption[] = useMemo(
-    () => cities.map((cityItem) => ({ label: cityItem.name, value: cityItem.name })),
+    () => cities.map((cityItem) => ({ label: cityItem.name, value: cityItem.id })),
     [cities],
+  );
+
+  const selectedState = useMemo(
+    () => states.find((item) => item.id === formik.values.state),
+    [states, formik.values.state],
+  );
+  const selectedCity = useMemo(
+    () => cities.find((item) => item.id === formik.values.city),
+    [cities, formik.values.city],
   );
 
   const departmentOptions: SelectOption[] = useMemo(
@@ -369,21 +442,17 @@ export function StaffOnboarding() {
     [departments, formik.values.departmentId],
   );
 
+  // Pre-saved at login (see hydrateLookups/lookupsSlice) — no local fallback
+  // data; scoped to whichever department is currently selected.
   const roles = useMemo<OptionItem[]>(() => {
     if (!selectedDepartmentName) {
       return [];
     }
 
-    const matches = storeRoles
+    return storeRoles
       .filter((role) => normalizeName(role.department) === normalizeName(selectedDepartmentName))
       .map((role) => ({ id: role.id, name: role.name }));
-
-    if (matches.length > 0) {
-      return matches;
-    }
-
-    return fallbackRolesByDepartment[formik.values.departmentId] ?? [];
-  }, [storeRoles, selectedDepartmentName, formik.values.departmentId]);
+  }, [storeRoles, selectedDepartmentName]);
 
   const roleOptions: SelectOption[] = useMemo(
     () => roles.map((role) => ({ label: role.name, value: role.id })),
@@ -395,47 +464,10 @@ export function StaffOnboarding() {
     [branches],
   );
 
-  const resolveOrganizationIdFromToken = (jwtToken?: string | null): string | null => {
-    if (!jwtToken || jwtToken.trim().length === 0) {
-      return null;
-    }
-
-    const parts = jwtToken.split('.');
-    if (parts.length < 2) {
-      return null;
-    }
-
-    try {
-      const base64Url = parts[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
-      const payload = JSON.parse(atob(padded)) as { organizationId?: unknown };
-      return typeof payload.organizationId === 'string' && payload.organizationId.trim().length > 0
-        ? payload.organizationId.trim()
-        : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const resolvedOrganizationId = useMemo(() => {
-    const directId = typeof user?.organizationId === 'string' && user.organizationId.trim().length > 0
-      ? user.organizationId.trim()
-      : null;
-
-    return directId ?? resolveOrganizationIdFromToken(token);
-  }, [token, user?.organizationId]);
-
   const createDepartmentInline = async () => {
     setModalError(null);
 
-    if (!resolvedOrganizationId) {
-      setModalError('Organization ID is missing in your session. Please log in again as a Super Admin.');
-      return;
-    }
-
     const name = departmentForm.name.trim();
-    const description = departmentForm.description.trim();
 
     if (!name) {
       setModalError('Department name is required.');
@@ -444,23 +476,15 @@ export function StaffOnboarding() {
 
     try {
       setIsCreatingDepartment(true);
-      const response = await api.post('/admin/departments', {
-        name,
-        description,
-        organizationId: resolvedOrganizationId,
-      });
-
-      const createdRaw = extractItem<Record<string, unknown>>(response);
-      const createdDepartmentId = createdRaw
-        ? String(createdRaw.id ?? createdRaw._id ?? '')
-        : '';
+      // POST /departments — description isn't a field the backend accepts
+      // (see CreateDepartmentPayload); the form field is kept for the UI's
+      // sake but only `name` is actually sent.
+      const created = await departmentsService.create({ name });
 
       dispatch(markLookupsStale());
       await dispatch(hydrateLookups());
 
-      if (createdDepartmentId) {
-        formik.setFieldValue('departmentId', createdDepartmentId, false);
-      }
+      formik.setFieldValue('departmentId', created.id, false);
 
       setDepartmentForm({ name: '', description: '' });
       setDepartmentModalOpen(false);
@@ -477,13 +501,7 @@ export function StaffOnboarding() {
   const createRoleInline = async () => {
     setModalError(null);
 
-    if (!resolvedOrganizationId) {
-      setModalError('Organization ID is missing in your session. Please log in again as a Super Admin.');
-      return;
-    }
-
     const name = roleForm.name.trim();
-    const description = roleForm.description.trim();
     const departmentId = roleForm.departmentId.trim();
 
     if (!name) {
@@ -498,24 +516,14 @@ export function StaffOnboarding() {
 
     try {
       setIsCreatingRole(true);
-      const response = await api.post('/admin/roles', {
-        name,
-        description,
-        departmentId,
-        organizationId: resolvedOrganizationId,
-      });
-
-      const createdRaw = extractItem<Record<string, unknown>>(response);
-      const createdRoleId = createdRaw
-        ? String(createdRaw.id ?? createdRaw._id ?? '')
-        : '';
+      // POST /units — "Role" on this form is really an org-structure Unit,
+      // see lookupsSlice's own note; description isn't accepted server-side.
+      const created = await unitsService.create({ name, departmentId });
 
       dispatch(markLookupsStale());
       await dispatch(hydrateLookups());
 
-      if (createdRoleId) {
-        formik.setFieldValue('roleId', createdRoleId, false);
-      }
+      formik.setFieldValue('roleId', created.id, false);
 
       setRoleForm({ name: '', description: '', departmentId: formik.values.departmentId || '' });
       setRoleModalOpen(false);
@@ -529,31 +537,56 @@ export function StaffOnboarding() {
     }
   };
 
-  const fetchStateLocalGovernments = async (stateName: string) => {
-    const response = await api.get(`/locations/states/${encodeURIComponent(stateName)}/local-governments`);
+  /**
+   * POST /staff/verify-bvn-preview — a real-time, no-consent BVN lookup
+   * usable before this staff record exists (see staff.service.ts). Doesn't
+   * persist anything; just resolves the provider's identity for the
+   * onboarder to confirm against what's typed into the form.
+   */
+  const handleVerifyBvn = async () => {
+    const bvn = formik.values.bvn.trim();
 
-    const source = response as {
-      data?: {
-        localGovernments?: unknown;
-      };
-      payload?: {
-        localGovernments?: unknown;
-      };
-    };
+    if (!/^\d{11}$/.test(bvn)) {
+      formik.setFieldTouched('bvn', true, false);
+      setBvnPreview(null);
+      setBvnPreviewError('Enter a valid 11-digit BVN first.');
+      setBvnModalOpen(true);
+      return;
+    }
 
-    const localGovernments =
-      (Array.isArray(source.data?.localGovernments) ? source.data?.localGovernments : undefined) ??
-      (Array.isArray(source.payload?.localGovernments) ? source.payload?.localGovernments : undefined) ??
-      [];
+    setBvnModalOpen(true);
+    setIsVerifyingBvn(true);
+    setBvnPreviewError(null);
+    setBvnPreview(null);
 
-    return localGovernments
-      .filter((item): item is string => typeof item === 'string')
-      .map((name) => ({ id: name, name }));
+    try {
+      const result = await staffService.verifyBvnPreview({ bvn });
+      setBvnPreview(result);
+    } catch (error) {
+      setBvnPreviewError(error instanceof Error ? error.message : 'BVN verification failed.');
+    } finally {
+      setIsVerifyingBvn(false);
+    }
   };
+
+  // A changed BVN invalidates any earlier confirmation — must be re-verified.
+  useEffect(() => {
+    setBvnPreviewConfirmed(false);
+  }, [formik.values.bvn]);
 
   useEffect(() => {
     formik.setFieldValue('roleId', '', false);
   }, [formik.values.departmentId]);
+
+  // Marketers are always Initiator, non-negotiable — the backend forces
+  // this server-side regardless of what's submitted (see
+  // StaffService.resolveUserType), so reflect it here too rather than
+  // showing an editable field whose value would be silently overridden.
+  useEffect(() => {
+    if (formik.values.role === 'MARKETER' && formik.values.userType !== 'Initiator') {
+      formik.setFieldValue('userType', 'Initiator', false);
+    }
+  }, [formik.values.role]);
 
   useEffect(() => {
     if (!inlineCreateSuccess) {
@@ -571,6 +604,8 @@ export function StaffOnboarding() {
 
   useEffect(() => {
     const loadCities = async () => {
+      // `formik.values.state` is the state's id (see stateOptions) — GET
+      // /reference-data/states/:stateId/cities, not the display name.
       if (!formik.values.state) {
         setIsLoadingCities(false);
         setCities([]);
@@ -579,8 +614,8 @@ export function StaffOnboarding() {
 
       try {
         setIsLoadingCities(true);
-        const cityList = await fetchStateLocalGovernments(formik.values.state);
-        setCities(cityList);
+        const cityList = await referenceDataService.listCitiesByState(formik.values.state);
+        setCities(cityList.map((city) => ({ id: city.id, name: city.name })));
       } catch {
         setCities([]);
       } finally {
@@ -647,6 +682,7 @@ export function StaffOnboarding() {
         onChange={formik.handleChange}
         onBlur={formik.handleBlur}
         placeholder={placeholder}
+        autoComplete="off"
         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
       />
       {getError(field) && <p className="text-xs text-red-600 mt-1">{getError(field)}</p>}
@@ -670,9 +706,10 @@ export function StaffOnboarding() {
                 pattern="[0-9]*"
                 name="phoneNumber"
                 value={formik.values.phoneNumber}
-                onChange={handleNumericChange('phoneNumber', 15)}
+                onChange={handleNumericChange('phoneNumber', 11)}
                 onBlur={formik.handleBlur}
                 placeholder="08000000000"
+                autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
               />
               {getError('phoneNumber') && <p className="text-xs text-red-600 mt-1">{getError('phoneNumber')}</p>}
@@ -684,7 +721,7 @@ export function StaffOnboarding() {
               name="gender"
               label="Gender"
               formik={formik}
-              options={genderOptions}
+              options={GENDER_OPTIONS}
               placeholder="Select Gender"
             />
 
@@ -700,22 +737,22 @@ export function StaffOnboarding() {
 
             <ReusableReactSelect
               name="city"
-              label="City / LGA"
+              label="City"
               formik={formik}
               options={cityOptions}
-              placeholder={formik.values.state ? 'Search and select city/LGA' : 'Select state first'}
+              placeholder={formik.values.state ? 'Search and select city' : 'Select state first'}
               isDisabled={!formik.values.state}
               isLoading={isLoadingCities}
               helperText={
                 !formik.values.state
-                  ? 'Select a state to load cities/LGAs'
+                  ? 'Select a state to load cities'
                   : isLoadingCities
-                    ? 'Loading LGAs...'
+                    ? 'Loading cities...'
                     : cityOptions.length === 0
-                      ? 'No LGAs found for selected state'
+                      ? 'No cities found for selected state'
                       : undefined
               }
-              noOptionsMessage={isLoadingCities ? 'Loading LGAs...' : 'No LGAs found'}
+              noOptionsMessage={isLoadingCities ? 'Loading cities...' : 'No cities found'}
             />
 
             <div className="md:col-span-2">{renderInput('address', 'Address', 'text', 'Enter staff residential address')}</div>
@@ -770,12 +807,28 @@ export function StaffOnboarding() {
               noOptionsMessage={isLoadingOptions ? 'Loading departments...' : 'No departments found'}
             />
 
+            {/* Labeled "Staff Role" rather than plain "Role" to stay distinct
+                from the `roleId` field just below — that one is really an
+                org-structure Unit, see its own doc comment. This is the
+                actual StaffRole the account is created with on approval. */}
             <ReusableReactSelect
-              name="staffLevel"
-              label="Staff Level"
+              name="role"
+              label="Staff Role"
               formik={formik}
-              options={staffLevelOptions}
-              placeholder="Select staff level"
+              options={staffRoleOptions}
+              placeholder="Select staff role"
+            />
+
+            <ReusableReactSelect
+              name="userType"
+              label="User Type"
+              formik={formik}
+              options={userTypeOptions}
+              placeholder="Select user type"
+              isDisabled={formik.values.role === 'MARKETER'}
+              helperText={
+                formik.values.role === 'MARKETER' ? 'Marketers are always Initiator.' : undefined
+              }
             />
 
             <ReusableReactSelect
@@ -854,13 +907,21 @@ export function StaffOnboarding() {
                   onChange={handleNumericChange('bvn', 11)}
                   onBlur={formik.handleBlur}
                   placeholder="11-digit BVN"
+                  autoComplete="off"
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
                 <button
                   type="button"
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium text-sm border border-gray-200"
+                  onClick={() => void handleVerifyBvn()}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium text-sm border border-gray-200 flex items-center gap-1.5 disabled:opacity-60"
+                  disabled={isVerifyingBvn}
                 >
-                  Verify
+                  {isVerifyingBvn ? (
+                    <LoaderIcon size={14} className="animate-spin" />
+                  ) : bvnPreviewConfirmed ? (
+                    <ShieldCheckIcon size={14} className="text-green-600" />
+                  ) : null}
+                  {isVerifyingBvn ? 'Verifying...' : bvnPreviewConfirmed ? 'Verified' : 'Verify'}
                 </button>
               </div>
               {getError('bvn') && <p className="text-xs text-red-600 mt-1">{getError('bvn')}</p>}
@@ -870,22 +931,107 @@ export function StaffOnboarding() {
               name="idType"
               label="ID Type"
               formik={formik}
-              options={idTypeOptions}
+              options={ID_TYPE_OPTIONS}
               placeholder="Select ID Type"
             />
 
             {renderInput('idNumber', 'ID Number', 'text')}
 
             <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-gray-50 cursor-pointer transition-colors">
-                <UploadCloudIcon size={32} className="text-gray-400 mb-2" />
-                <p className="text-sm font-medium text-gray-700">Upload ID Document</p>
-                <p className="text-xs text-gray-400 mt-1">PNG, JPG or PDF (Max 5MB)</p>
+              <div>
+                <input
+                  ref={idDocumentInputRef}
+                  type="file"
+                  accept={ID_DOCUMENT_MIME_TYPES.join(',')}
+                  className="hidden"
+                  onChange={(event) => {
+                    selectIdDocument(event.target.files?.[0] ?? null);
+                    event.target.value = '';
+                  }}
+                />
+                {idDocumentFile ? (
+                  <div className="border-2 border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <FileTextIcon size={20} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-700 truncate">{idDocumentFile.name}</p>
+                      <p className="text-xs text-gray-400">{(idDocumentFile.size / 1024).toFixed(0)} KB</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => selectIdDocument(null)}
+                      className="text-gray-400 hover:text-red-600 flex-shrink-0"
+                      aria-label="Remove ID document"
+                    >
+                      <XCircleIcon size={20} />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => idDocumentInputRef.current?.click()}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      selectIdDocument(event.dataTransfer.files?.[0] ?? null);
+                    }}
+                    className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    <UploadCloudIcon size={32} className="text-gray-400 mb-2" />
+                    <p className="text-sm font-medium text-gray-700">Upload ID Document</p>
+                    <p className="text-xs text-gray-400 mt-1">PNG, JPG or PDF (Max 5MB)</p>
+                  </div>
+                )}
+                {idDocumentError && <p className="text-xs text-red-600 mt-1">{idDocumentError}</p>}
               </div>
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-gray-50 cursor-pointer transition-colors">
-                <UploadCloudIcon size={32} className="text-gray-400 mb-2" />
-                <p className="text-sm font-medium text-gray-700">Upload Passport Photo</p>
-                <p className="text-xs text-gray-400 mt-1">PNG or JPG (Max 2MB)</p>
+
+              <div>
+                <input
+                  ref={passportPhotoInputRef}
+                  type="file"
+                  accept={PASSPORT_PHOTO_MIME_TYPES.join(',')}
+                  className="hidden"
+                  onChange={(event) => {
+                    selectPassportPhoto(event.target.files?.[0] ?? null);
+                    event.target.value = '';
+                  }}
+                />
+                {passportPhotoFile && passportPhotoPreviewUrl ? (
+                  <div className="border-2 border-gray-200 rounded-xl p-4 flex items-center gap-3">
+                    <img
+                      src={passportPhotoPreviewUrl}
+                      alt="Passport preview"
+                      className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-700 truncate">{passportPhotoFile.name}</p>
+                      <p className="text-xs text-gray-400">{(passportPhotoFile.size / 1024).toFixed(0)} KB</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => selectPassportPhoto(null)}
+                      className="text-gray-400 hover:text-red-600 flex-shrink-0"
+                      aria-label="Remove passport photo"
+                    >
+                      <XCircleIcon size={20} />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => passportPhotoInputRef.current?.click()}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      selectPassportPhoto(event.dataTransfer.files?.[0] ?? null);
+                    }}
+                    className="border-2 border-dashed border-gray-300 rounded-xl p-6 flex flex-col items-center justify-center text-center hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    <UploadCloudIcon size={32} className="text-gray-400 mb-2" />
+                    <p className="text-sm font-medium text-gray-700">Upload Passport Photo</p>
+                    <p className="text-xs text-gray-400 mt-1">PNG or JPG (Max 5MB)</p>
+                  </div>
+                )}
+                {passportPhotoError && <p className="text-xs text-red-600 mt-1">{passportPhotoError}</p>}
               </div>
             </div>
 
@@ -902,9 +1048,10 @@ export function StaffOnboarding() {
                 pattern="[0-9]*"
                 name="nokPhone"
                 value={formik.values.nokPhone}
-                onChange={handleNumericChange('nokPhone', 15)}
+                onChange={handleNumericChange('nokPhone', 11)}
                 onBlur={formik.handleBlur}
                 placeholder="08000000000"
+                autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
               />
               {getError('nokPhone') && <p className="text-xs text-red-600 mt-1">{getError('nokPhone')}</p>}
@@ -924,9 +1071,10 @@ export function StaffOnboarding() {
                 pattern="[0-9]*"
                 name="referencePhone"
                 value={formik.values.referencePhone}
-                onChange={handleNumericChange('referencePhone', 15)}
+                onChange={handleNumericChange('referencePhone', 11)}
                 onBlur={formik.handleBlur}
                 placeholder="08000000000"
+                autoComplete="off"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
               />
               {getError('referencePhone') && <p className="text-xs text-red-600 mt-1">{getError('referencePhone')}</p>}
@@ -957,7 +1105,10 @@ export function StaffOnboarding() {
               <span className="font-medium">Department:</span> {selectedDepartment?.name || '—'}
             </li>
             <li>
-              <span className="font-medium">Staff Level:</span> {formik.values.staffLevel || '—'}
+              <span className="font-medium">Staff Role:</span> {STAFF_ROLE_LABEL[formik.values.role] ?? formik.values.role ?? '—'}
+            </li>
+            <li>
+              <span className="font-medium">User Type:</span> {formik.values.userType || '—'}
             </li>
             <li>
               <span className="font-medium">Role:</span> {selectedRole?.name || '—'}
@@ -966,7 +1117,7 @@ export function StaffOnboarding() {
               <span className="font-medium">Branch:</span> {selectedBranch?.name || '—'}
             </li>
             <li>
-              <span className="font-medium">State/City:</span> {formik.values.state || '—'} / {formik.values.city || '—'}
+              <span className="font-medium">State/City:</span> {selectedState?.name || '—'} / {selectedCity?.name || '—'}
             </li>
           </ul>
         </div>
@@ -978,7 +1129,7 @@ export function StaffOnboarding() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h2 className="text-2xl font-heading font-bold text-primary">Staff Onboarding</h2>
+          
           <p className="text-gray-500 text-sm mt-1">Register a new staff member into the system</p>
         </div>
       </div>
@@ -1008,7 +1159,21 @@ export function StaffOnboarding() {
         </div>
       </div>
 
-      <form onSubmit={formik.handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
+      <form
+        onSubmit={formik.handleSubmit}
+        // The whole 4-step wizard is one <form> — by the time a user reaches
+        // the last step, every earlier step's fields already validate, so a
+        // stray Enter keypress in any text field (a very natural habit while
+        // filling one out) would otherwise submit the entire form the moment
+        // it bubbles up here, well before "Submit Registration" is ever
+        // clicked. Only step 4 (Review) is allowed to actually submit on
+        // Enter — everywhere else it's a no-op.
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && step < 4) {
+            event.preventDefault();
+          }
+        }}
+        className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8">
         <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}>
           {renderStepContent()}
         </motion.div>
@@ -1028,6 +1193,7 @@ export function StaffOnboarding() {
 
           {step < 4 ? (
             <button
+              key="continue-button"
               type="button"
               onClick={() => {
                 void handleNextStep();
@@ -1039,6 +1205,7 @@ export function StaffOnboarding() {
             </button>
           ) : (
             <button
+              key="submit-button"
               type="submit"
               disabled={formik.isSubmitting}
               className="flex items-center px-8 py-2 bg-accent text-white rounded-lg hover:bg-[#e64a19] font-heading font-bold transition-colors shadow-md"
@@ -1168,6 +1335,112 @@ export function StaffOnboarding() {
           </div>
         </div>
       )}
+
+      <AnimatePresence>
+        {bvnModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setBvnModalOpen(false)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-white rounded-xl shadow-xl w-full max-w-md p-6"
+            >
+              <button
+                type="button"
+                onClick={() => setBvnModalOpen(false)}
+                className="absolute top-4 right-4 p-1 text-gray-400 hover:text-gray-600"
+              >
+                <XIcon size={18} />
+              </button>
+
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                  <ShieldCheckIcon size={20} className="text-primary" />
+                </div>
+                <h3 className="text-lg font-heading font-bold text-primary">BVN Verification</h3>
+              </div>
+
+              {isVerifyingBvn && (
+                <div className="flex flex-col items-center justify-center py-8 text-gray-500">
+                  <LoaderIcon size={28} className="animate-spin mb-3 text-primary" />
+                  <p className="text-sm">Checking BVN with the provider...</p>
+                </div>
+              )}
+
+              {!isVerifyingBvn && bvnPreviewError && (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+                    <AlertCircleIcon size={16} className="flex-shrink-0 mt-0.5" />
+                    <span>{bvnPreviewError}</span>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBvnModalOpen(false)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleVerifyBvn()}
+                      className="px-4 py-2 bg-primary text-white rounded-lg text-sm"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!isVerifyingBvn && !bvnPreviewError && bvnPreview && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+                    <CheckCircle2Icon size={16} className="flex-shrink-0" />
+                    <span>This BVN resolves to a real identity — confirm it matches the person being onboarded.</span>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm bg-gray-50 rounded-lg p-4 border border-gray-100">
+                    <div>
+                      <dt className="text-xs text-gray-500 uppercase tracking-wide">Name</dt>
+                      <dd className="font-medium text-gray-800">
+                        {bvnPreview.firstName} {bvnPreview.lastName}
+                        {bvnPreview.otherNames ? ` ${bvnPreview.otherNames}` : ''}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-gray-500 uppercase tracking-wide">Date of Birth</dt>
+                      <dd className="font-medium text-gray-800">{bvnPreview.dateOfBirth}</dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-xs text-gray-500 uppercase tracking-wide">Phone Number</dt>
+                      <dd className="font-medium text-gray-800">{bvnPreview.phoneNumber}</dd>
+                    </div>
+                  </dl>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBvnModalOpen(false)}
+                      className="px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBvnPreviewConfirmed(true);
+                        setBvnModalOpen(false);
+                      }}
+                      className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium"
+                    >
+                      This Is Correct
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -13,7 +13,7 @@ import {
 import { useFormik } from 'formik';
 import { Logo } from '../components/Logo';
 import { env } from '../config/env';
-import { authService } from '../services/auth.service';
+import { authService } from '../services/auth/auth.service';
 import { resetPasswordSchema } from '../validators/authSchemas';
 export function ResetPassword() {
   const navigate = useNavigate();
@@ -55,7 +55,7 @@ export function ResetPassword() {
         } else {
           await authService.resetPassword({
             email,
-            otp: values.otp,
+            code: values.otp,
             newPassword: values.newPassword
           });
         }
@@ -296,7 +296,7 @@ export function ResetPassword() {
                     setError('');
                   }}
                   onBlur={formik.handleBlur}
-                  placeholder="Minimum 8 characters"
+                  placeholder="10+ characters, upper/lowercase, a number & a symbol"
                   className="w-full px-4 py-2.5 pr-11 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                   required
                   disabled={loading || toast} />
@@ -315,9 +315,9 @@ export function ResetPassword() {
               </div>
               {formik.touched.newPassword && formik.errors.newPassword ?
               <p className="text-xs text-red-600 mt-1">{formik.errors.newPassword}</p> :
-              formik.values.newPassword && formik.values.newPassword.length < 8 &&
+              formik.values.newPassword && formik.values.newPassword.length < 10 &&
               <p className="text-xs text-amber-600 mt-1">
-                  Password must be at least 8 characters
+                  Password must be at least 10 characters, with upper/lowercase, a number, and a symbol
                 </p>
               }
             </div>
@@ -390,9 +390,11 @@ export function ResetPassword() {
               }
             </button>
 
+            {env.enableMockAuth &&
             <p className="text-center text-xs text-gray-400 mt-4">
-              Demo: Enter any 6 digits for the OTP code
-            </p>
+                Demo: Enter any 6 digits for the code
+              </p>
+            }
           </form>
         </motion.div>
       </div>

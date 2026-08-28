@@ -1,5 +1,10 @@
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { api } from '../../app/api';
+import { canManageOrgStructure } from '../../services/auth/role.util';
+import { branchesService, type Branch } from '../../services/branches/branches.service';
+import { departmentsService, type Department } from '../../services/departments/departments.service';
+import { referenceDataService } from '../../services/reference-data/reference-data.service';
+import { staffService, type Staff } from '../../services/staff/staff.service';
+import { unitsService, type Unit } from '../../services/units/units.service';
 import type { RootState } from '../index';
 
 export type LookupOption = {
@@ -10,22 +15,18 @@ export type LookupOption = {
 export type DepartmentLookup = {
   id: string;
   name: string;
-  description?: string;
   status?: 'Active' | 'Inactive';
   staffCount?: number;
   dateCreated?: string;
-  organizationId?: string;
 };
 
 export type RoleLookup = {
   id: string;
   name: string;
   department: string;
-  description?: string;
   staffCount?: number;
   status?: 'Active' | 'Inactive';
   dateCreated?: string;
-  organizationId?: string;
 };
 
 export type BranchLookup = {
@@ -38,7 +39,6 @@ export type BranchLookup = {
   phone?: string;
   email?: string;
   managerId?: string;
-  organizationId?: string;
   isActive?: boolean;
 };
 
@@ -60,22 +60,6 @@ type LookupsState = {
   error: string | null;
 };
 
-type ApiEnvelope<T> = {
-  data?: T;
-  payload?: T;
-  items?: T;
-};
-
-const getOrganizationIdFromState = (state: RootState): string | null => {
-  const organizationId = state.auth.user?.organizationId;
-  if (typeof organizationId !== 'string') {
-    return null;
-  }
-
-  const trimmedOrganizationId = organizationId.trim();
-  return trimmedOrganizationId.length > 0 ? trimmedOrganizationId : null;
-};
-
 const initialState: LookupsState = {
   states: [],
   departments: [],
@@ -87,211 +71,84 @@ const initialState: LookupsState = {
   error: null,
 };
 
-const normalizeCollection = <T>(response: unknown): T[] => {
-  if (!response || typeof response !== 'object') {
-    return [];
-  }
+const toDepartmentLookup = (department: Department): DepartmentLookup => ({
+  id: department.id,
+  name: department.name,
+  status: department.active ? 'Active' : 'Inactive',
+  staffCount: department.staffCount,
+  dateCreated: department.createdAt,
+});
 
-  const source = response as ApiEnvelope<T[]>;
-  if (Array.isArray(source.data)) {
-    return source.data;
-  }
+// `RoleLookup` here is org-structure "units" (each belongs to a department),
+// not the StaffRole enum — see lookupsSlice's history: it originally backed
+// a since-removed `/admin/roles` endpoint. Kept as `roles`/`RoleLookup` so
+// the pages already consuming this shape (BranchManagement, StaffOnboarding,
+// DepartmentsRoles, StaffDetail, ...) don't need a rename in this pass.
+const toRoleLookup = (unit: Unit): RoleLookup => ({
+  id: unit.id,
+  name: unit.name,
+  department: unit.departmentName,
+  status: unit.active ? 'Active' : 'Inactive',
+  staffCount: unit.staffCount,
+  dateCreated: unit.createdAt,
+});
 
-  if (Array.isArray(source.payload)) {
-    return source.payload;
-  }
+/**
+ * A "Branch Manager" is simply any ACTIVE staff member with role MANAGER —
+ * there's no separate flag for it (see StaffRole's own doc comment on the
+ * backend: branch operations are exactly what MANAGER is for). Resolved
+ * from GET /staff, the same org:manage-gated call departments/units/branches
+ * above already make.
+ */
+const toBranchManagerLookup = (staff: Staff): BranchManagerLookup => ({
+  id: staff.id,
+  fullName: `${staff.firstName} ${staff.lastName}`.trim(),
+  email: staff.email,
+  userLevel: staff.role,
+});
 
-  if (Array.isArray(source.items)) {
-    return source.items;
-  }
+const toBranchLookup = (branch: Branch): BranchLookup => ({
+  id: branch.id,
+  name: branch.name,
+  code: branch.code,
+  address: branch.address ?? undefined,
+  isActive: branch.active,
+});
 
-  return [];
-};
-
-const toStringId = (value: unknown): string => {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value);
-  }
-
-  if (!value || typeof value !== 'object') {
-    return '';
-  }
-
-  const source = value as Record<string, unknown>;
-  const preferred = source.id ?? source._id;
-  if (typeof preferred === 'string' || typeof preferred === 'number') {
-    return String(preferred);
-  }
-
-  return '';
-};
-
-const mapState = (raw: unknown): LookupOption | null => {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const source = raw as Record<string, unknown>;
-  const id = source.id ?? source._id ?? source.name;
-  const name = source.name ?? source.title;
-
-  if ((typeof id !== 'string' && typeof id !== 'number') || typeof name !== 'string') {
-    return null;
-  }
-
-  return {
-    id: String(id),
-    name,
-  };
-};
-
-const mapDepartment = (raw: unknown): DepartmentLookup | null => {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const source = raw as Record<string, unknown>;
-  const id = source.id ?? source._id;
-  const name = source.name;
-
-  if ((typeof id !== 'string' && typeof id !== 'number') || typeof name !== 'string') {
-    return null;
-  }
-
-  return {
-    id: String(id),
-    name,
-    description: typeof source.description === 'string' ? source.description : undefined,
-    status: source.status === 'Inactive' ? 'Inactive' : 'Active',
-    staffCount: typeof source.staffCount === 'number' ? source.staffCount : undefined,
-    dateCreated: typeof source.dateCreated === 'string' ? source.dateCreated : undefined,
-    organizationId: typeof source.organizationId === 'string' ? source.organizationId : undefined,
-  };
-};
-
-const mapRole = (raw: unknown): RoleLookup | null => {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const source = raw as Record<string, unknown>;
-  const id = source.id ?? source._id;
-  const name = source.name;
-  const department = source.department;
-
-  if (
-    (typeof id !== 'string' && typeof id !== 'number') ||
-    typeof name !== 'string' ||
-    typeof department !== 'string'
-  ) {
-    return null;
-  }
-
-  return {
-    id: String(id),
-    name,
-    department,
-    description: typeof source.description === 'string' ? source.description : undefined,
-    staffCount: typeof source.staffCount === 'number' ? source.staffCount : undefined,
-    status: source.status === 'Inactive' ? 'Inactive' : 'Active',
-    dateCreated: typeof source.dateCreated === 'string' ? source.dateCreated : undefined,
-    organizationId: typeof source.organizationId === 'string' ? source.organizationId : undefined,
-  };
-};
-
-const mapBranch = (raw: unknown): BranchLookup | null => {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const source = raw as Record<string, unknown>;
-  const id = source.id ?? source._id;
-  const name = source.name;
-
-  if ((typeof id !== 'string' && typeof id !== 'number') || typeof name !== 'string') {
-    return null;
-  }
-
-  return {
-    id: String(id),
-    name,
-    code: typeof source.code === 'string' ? source.code : undefined,
-    address: typeof source.address === 'string' ? source.address : undefined,
-    city: typeof source.city === 'string' ? source.city : undefined,
-    state: typeof source.state === 'string' ? source.state : undefined,
-    phone: typeof source.phone === 'string' ? source.phone : undefined,
-    email: typeof source.email === 'string' ? source.email : undefined,
-    managerId: toStringId(source.managerId) || undefined,
-    organizationId: typeof source.organizationId === 'string' ? source.organizationId : undefined,
-    isActive: typeof source.isActive === 'boolean' ? source.isActive : undefined,
-  };
-};
-
-const deriveBranchManagersFromBranches = (branches: BranchLookup[], rawBranches: unknown[]): BranchManagerLookup[] => {
-  const collected = new Map<string, BranchManagerLookup>();
-
-  rawBranches.forEach((rawBranch) => {
-    if (!rawBranch || typeof rawBranch !== 'object') {
-      return;
-    }
-
-    const branchSource = rawBranch as Record<string, unknown>;
-    const managerSource = branchSource.managerId;
-
-    if (!managerSource || typeof managerSource !== 'object') {
-      return;
-    }
-
-    const manager = managerSource as Record<string, unknown>;
-    const id = toStringId(manager);
-    if (!id) {
-      return;
-    }
-
-    const fullName = `${typeof manager.firstName === 'string' ? manager.firstName : ''} ${typeof manager.lastName === 'string' ? manager.lastName : ''}`.trim();
-    const fallbackName =
-      (typeof manager.name === 'string' && manager.name.trim().length > 0 ? manager.name.trim() : '') ||
-      (typeof manager.fullName === 'string' && manager.fullName.trim().length > 0 ? manager.fullName.trim() : '') ||
-      fullName ||
-      (branches.find((item) => item.managerId === id)?.name ?? 'Branch Manager');
-
-    const email = typeof manager.email === 'string' ? manager.email : '';
-    const userLevel = typeof manager.userLevel === 'string' ? manager.userLevel : 'BranchManager';
-
-    collected.set(id, {
-      id,
-      fullName: fallbackName,
-      email,
-      userLevel,
-    });
-  });
-
-  return Array.from(collected.values());
-};
-
+/**
+ * States are readable by every role (GET /reference-data/states needs only
+ * a valid session, no capability). Departments/units/branches/staff are
+ * gated server-side by the `org:manage` capability (ADMIN/SUPERADMIN only,
+ * see default-role-capabilities.ts) — for every other role this thunk
+ * deliberately skips those four calls rather than firing requests that
+ * always 403. `branchManagers` is derived client-side from that same staff
+ * list (role === MANAGER) — see toBranchManagerLookup's own doc comment.
+ */
 export const hydrateLookups = createAsyncThunk(
   'lookups/hydrateLookups',
-  async () => {
-    const [statesResponse, departmentsResponse, rolesResponse, branchesResponse] = await Promise.all([
-      api.get('/locations/states'),
-      api.get('/admin/departments'),
-      api.get('/admin/roles'),
-      api.get('/admin/branches'),
+  async (_: void, { getState }) => {
+    const role = (getState() as RootState).auth.user?.role;
+    const canManageOrg = canManageOrgStructure(role);
+
+    const [statesResult, departmentsResult, unitsResult, branchesResult, staffResult] = await Promise.allSettled([
+      referenceDataService.listStates(),
+      canManageOrg ? departmentsService.list() : Promise.resolve<Department[]>([]),
+      canManageOrg ? unitsService.list() : Promise.resolve<Unit[]>([]),
+      canManageOrg ? branchesService.list() : Promise.resolve<Branch[]>([]),
+      canManageOrg ? staffService.list() : Promise.resolve<Staff[]>([]),
     ]);
 
-    const normalizedBranches = normalizeCollection<unknown>(branchesResponse).map(mapBranch).filter(Boolean) as BranchLookup[];
+    const staff = staffResult.status === 'fulfilled' ? staffResult.value : [];
 
     return {
-      states: normalizeCollection<unknown>(statesResponse).map(mapState).filter(Boolean) as LookupOption[],
-      departments: normalizeCollection<unknown>(departmentsResponse)
-        .map(mapDepartment)
-        .filter(Boolean) as DepartmentLookup[],
-      roles: normalizeCollection<unknown>(rolesResponse).map(mapRole).filter(Boolean) as RoleLookup[],
-      branches: normalizedBranches,
-      branchManagers: deriveBranchManagersFromBranches(
-        normalizedBranches,
-        normalizeCollection<unknown>(branchesResponse),
-      ),
+      states: statesResult.status === 'fulfilled' ? statesResult.value : [],
+      departments:
+        departmentsResult.status === 'fulfilled' ? departmentsResult.value.map(toDepartmentLookup) : [],
+      roles: unitsResult.status === 'fulfilled' ? unitsResult.value.map(toRoleLookup) : [],
+      branches: branchesResult.status === 'fulfilled' ? branchesResult.value.map(toBranchLookup) : [],
+      branchManagers: staff
+        .filter((member) => member.role === 'MANAGER' && member.status === 'ACTIVE')
+        .map(toBranchManagerLookup),
     };
   },
   {
@@ -308,49 +165,19 @@ export const hydrateLookups = createAsyncThunk(
   },
 );
 
-export const upsertDepartmentScoped = createAsyncThunk<DepartmentLookup | null, DepartmentLookup, { state: RootState }>(
+export const upsertDepartmentScoped = createAsyncThunk<DepartmentLookup, DepartmentLookup>(
   'lookups/upsertDepartmentScoped',
-  async (payload, { getState }) => {
-    const organizationId = getOrganizationIdFromState(getState());
-    if (!organizationId) {
-      return null;
-    }
-
-    return {
-      ...payload,
-      organizationId,
-    };
-  },
+  async (payload) => payload,
 );
 
-export const upsertRoleScoped = createAsyncThunk<RoleLookup | null, RoleLookup, { state: RootState }>(
+export const upsertRoleScoped = createAsyncThunk<RoleLookup, RoleLookup>(
   'lookups/upsertRoleScoped',
-  async (payload, { getState }) => {
-    const organizationId = getOrganizationIdFromState(getState());
-    if (!organizationId) {
-      return null;
-    }
-
-    return {
-      ...payload,
-      organizationId,
-    };
-  },
+  async (payload) => payload,
 );
 
-export const upsertBranchScoped = createAsyncThunk<BranchLookup | null, BranchLookup, { state: RootState }>(
+export const upsertBranchScoped = createAsyncThunk<BranchLookup, BranchLookup>(
   'lookups/upsertBranchScoped',
-  async (payload, { getState }) => {
-    const organizationId = getOrganizationIdFromState(getState());
-    if (!organizationId) {
-      return null;
-    }
-
-    return {
-      ...payload,
-      organizationId,
-    };
-  },
+  async (payload) => payload,
 );
 
 const upsertById = <T extends { id: string }>(items: T[], incoming: T): T[] => {
@@ -430,21 +257,12 @@ const lookupsSlice = createSlice({
         state.error = action.error.message ?? 'Failed to load lookup data';
       })
       .addCase(upsertDepartmentScoped.fulfilled, (state, action) => {
-        if (!action.payload) {
-          return;
-        }
         state.departments = upsertById(state.departments, action.payload);
       })
       .addCase(upsertRoleScoped.fulfilled, (state, action) => {
-        if (!action.payload) {
-          return;
-        }
         state.roles = upsertById(state.roles, action.payload);
       })
       .addCase(upsertBranchScoped.fulfilled, (state, action) => {
-        if (!action.payload) {
-          return;
-        }
         state.branches = upsertById(state.branches, action.payload);
       });
   },

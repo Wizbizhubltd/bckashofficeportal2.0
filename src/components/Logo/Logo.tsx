@@ -12,7 +12,7 @@ export function Logo({
 }: {className?: string;width?: number;height?: number;'data-id'?: string;}) {
   return (
     <img
-      src="/4bb35e6a-8695-4844-8b53-7d1b31577d2c.png"
+      src="/bckashlogoNew.png"
       alt="Logo"
       className={className}
       style={{
