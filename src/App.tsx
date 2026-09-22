@@ -1,67 +1,46 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import { useAuth } from './context/AuthContext';
-import { Layout } from './components/Layout';
-import { RoleRoute } from './components/RoleRoute';
-import { roleHomeRoute } from './services/auth/role.util';
-import { Login } from './pages/Login';
-import { VerifyOtp } from './pages/VerifyOtp';
-import { ForgotPassword } from './pages/ForgotPassword';
-import { ResetPassword } from './pages/ResetPassword';
-import { Dashboard } from './pages/Dashboard';
-import { BranchManagement } from './pages/BranchManagement';
-import { BranchDetail } from './pages/branches/BranchDetail';
-import { BranchProposalDetail } from './pages/branches/BranchProposalDetail';
-import { MyBranch } from './pages/branches/MyBranch';
-import { Customers } from './pages/Customers';
-import { CustomerDetail } from './pages/customers/CustomerDetail';
-import { GroupDetail } from './pages/customers/GroupDetail';
-import { GroupProposalDetail } from './pages/customers/GroupProposalDetail';
-import { CustomerPrintPage } from './pages/customers/CustomerPrintPage';
-import { StaffOnboarding } from './pages/onboarding/StaffOnboarding';
-import { CustomerOnboarding } from './pages/onboarding/CustomerOnboarding';
-import { GroupLoans } from './pages/loan-manager/GroupLoans';
-import { LoanApplications } from './pages/loan-manager/LoanApplications';
-import { LoanDisbursement } from './pages/loan-manager/LoanDisbursement';
-import { LoanRepayment } from './pages/loan-manager/LoanRepayment';
-import { LoanReports } from './pages/loan-manager/LoanReports';
-import { LoanApprovals } from './pages/loan-manager/LoanApprovals';
-import { LoanDetail } from './pages/loan-manager/LoanDetail';
-import { HrManager } from './pages/HrManager';
-import { Profile } from './pages/profile/Profile';
-import { StaffDetail } from './pages/staff/StaffDetail';
-import { NotificationCenter } from './pages/notifications/NotificationCenter';
-import { FinCon } from './pages/FinCon';
-import { Settings } from './pages/Settings';
-import { RootAdminLogin } from './pages/root-admin/RootAdminLogin';
-import { RootAdminHome } from './pages/root-admin/RootAdminHome';
-import { RootAdminLayout } from './pages/root-admin/RootAdminLayout';
-import { RootAdminOrganisations } from './pages/root-admin/RootAdminOrganisations';
-import { RootAdminSettings } from './pages/root-admin/RootAdminSettings';
 import { Toaster } from 'react-hot-toast';
-
-// Every staff role — a route with no <RoleRoute> guard above it is reachable
-// by all five once authenticated (Layout itself already requires a session).
-const ORG_MANAGERS = ['super_admin', 'admin'] as const;
-// Wider than ORG_MANAGERS on purpose: Approver holds approveCapability for
-// every workflow entity type, including LOAN_PRODUCT/FEE_DEFINITION config
-// proposals — they need to reach Settings to review/act on those, even
-// though the rest of Settings' tabs (Organisation, Departments, ...) still
-// only mean anything to Admin/SuperAdmin. Settings.tsx itself further
-// restricts which *tabs* an Approver actually sees.
-const SETTINGS_ROLES = ['super_admin', 'admin', 'approver'] as const;
-const APPROVAL_ROLES = ['super_admin', 'admin', 'approver'] as const;
-const STAFF_ONBOARDERS = ['super_admin', 'admin', 'manager'] as const;
-const BRANCH_MANAGERS = ['manager'] as const;
-// The Notification Center's full paginated/mark-all-read view — every other
-// role reaches their own inbox via the Header's bell dropdown instead (see
-// Header.tsx), which needs no dedicated route/guard of its own.
-const SUPER_ADMIN_ONLY = ['super_admin'] as const;
-
-function RoleHomeRedirect() {
-  const { user } = useAuth();
-  return <Navigate to={roleHomeRoute(user?.role)} replace />;
-}
+import { AuthProvider } from './context/AuthContext';
+import { Layout } from './components/Layout';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { Login } from './pages/Login';
+import { TwoFactor } from './pages/TwoFactor';
+import { VerifyOtp } from './pages/VerifyOtp';
+import { Home } from './pages/Home';
+import { OfficesAdmin } from './pages/admin/OfficesAdmin';
+import { CurrenciesAdmin } from './pages/admin/CurrenciesAdmin';
+import { CountriesAdmin } from './pages/admin/CountriesAdmin';
+import { FundsAdmin } from './pages/admin/FundsAdmin';
+import { PaymentTypesAdmin } from './pages/admin/PaymentTypesAdmin';
+import { ChargesAdmin } from './pages/admin/ChargesAdmin';
+import { CustomFieldsAdmin } from './pages/admin/CustomFieldsAdmin';
+import { SettingsAdmin } from './pages/admin/SettingsAdmin';
+import { ClientsListPage } from './pages/admin/clients/ClientsListPage';
+import { ClientFormPage } from './pages/admin/clients/ClientFormPage';
+import { ClientDetailPage } from './pages/admin/clients/ClientDetailPage';
+import { ClientRelationshipsAdmin } from './pages/admin/ClientRelationshipsAdmin';
+import { ClientIdentificationTypesAdmin } from './pages/admin/ClientIdentificationTypesAdmin';
+import { ClientProfessionsAdmin } from './pages/admin/ClientProfessionsAdmin';
+import { GroupsListPage } from './pages/admin/groups/GroupsListPage';
+import { GroupFormPage } from './pages/admin/groups/GroupFormPage';
+import { GroupDetailPage } from './pages/admin/groups/GroupDetailPage';
+import { LoanProductsListPage } from './pages/admin/loan-products/LoanProductsListPage';
+import { LoanProductFormPage } from './pages/admin/loan-products/LoanProductFormPage';
+import { LoanPurposesAdmin } from './pages/admin/LoanPurposesAdmin';
+import { CollateralTypesAdmin } from './pages/admin/CollateralTypesAdmin';
+import { LoanApplicationsListPage } from './pages/admin/loan-applications/LoanApplicationsListPage';
+import { LoanApplicationFormPage } from './pages/admin/loan-applications/LoanApplicationFormPage';
+import { LoanApplicationDetailPage } from './pages/admin/loan-applications/LoanApplicationDetailPage';
+import { LoanDetailPage } from './pages/admin/loans/LoanDetailPage';
+import { ChartOfAccountsPage } from './pages/admin/gl/ChartOfAccountsPage';
+import { JournalEntriesPage } from './pages/admin/gl/JournalEntriesPage';
+import { ClosuresPage } from './pages/admin/gl/ClosuresPage';
+import { OfficeTransfersPage } from './pages/admin/gl/OfficeTransfersPage';
+import { ReportsPage } from './pages/admin/gl/ReportsPage';
+import { SavingsProductsListPage } from './pages/admin/savings-products/SavingsProductsListPage';
+import { SavingsProductFormPage } from './pages/admin/savings-products/SavingsProductFormPage';
+import { SavingsAccountsListPage } from './pages/admin/savings/SavingsAccountsListPage';
+import { SavingsAccountDetailPage } from './pages/admin/savings/SavingsAccountDetailPage';
 
 export function App() {
   return (
@@ -81,89 +60,69 @@ export function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/2fa" element={<TwoFactor />} />
           <Route path="/verify-otp" element={<VerifyOtp />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/customers/:id/print" element={<CustomerPrintPage />} />
 
-          <Route path="/root-admin/login" element={<RootAdminLogin />} />
-          <Route path="/root-admin" element={<RootAdminLayout />}>
-            <Route index element={<Navigate to="/root-admin/dashboard" replace />} />
-            <Route path="dashboard" element={<RootAdminHome />} />
-            <Route path="organisations" element={<RootAdminOrganisations />} />
-            <Route path="settings" element={<RootAdminSettings />} />
-          </Route>
+          <Route element={<ProtectedRoute />}>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Home />} />
 
-          {/*
-            One shared route tree for every staff role — no more per-role URL
-            prefixes. Each section is wrapped in a <RoleRoute allow={[...]}>
-            guard; visiting a route your role isn't in redirects you to your
-            own designated home instead of rendering the page.
-          */}
-          <Route path="/" element={<Layout />}>
-            <Route index element={<RoleHomeRedirect />} />
-
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="customers" element={<Customers />} />
-            <Route path="customers/:id" element={<CustomerDetail />} />
-            {/* Declared before the dynamic :groupId route below — a literal "requests" segment must precede a dynamic single-segment one, same convention used elsewhere in this codebase. */}
-            <Route path="customers/groups/requests/:workflowRequestId" element={<GroupProposalDetail />} />
-            <Route path="customers/groups/:groupId" element={<GroupDetail />} />
-            <Route path="onboarding/customer" element={<CustomerOnboarding />} />
-            {/* Every role — Profile.tsx dispatches to the role-specific page internally. */}
-            <Route path="profile" element={<Profile />} />
-
-            <Route path="loan-manager">
-              <Route path="group-loans" element={<GroupLoans />} />
-              <Route path="applications" element={<LoanApplications />} />
-              <Route path="disbursement" element={<LoanDisbursement />} />
-              <Route path="repayment" element={<LoanRepayment />} />
-              <Route path="reports" element={<LoanReports />} />
-              <Route path="loans/:id" element={<LoanDetail />} />
-
-              <Route element={<RoleRoute allow={APPROVAL_ROLES} />}>
-                <Route path="approvals" element={<LoanApprovals />} />
+              <Route path="admin">
+                <Route index element={<Navigate to="/admin/offices" replace />} />
+                <Route path="offices" element={<OfficesAdmin />} />
+                <Route path="currencies" element={<CurrenciesAdmin />} />
+                <Route path="countries" element={<CountriesAdmin />} />
+                <Route path="funds" element={<FundsAdmin />} />
+                <Route path="payment-types" element={<PaymentTypesAdmin />} />
+                <Route path="charges" element={<ChargesAdmin />} />
+                <Route path="custom-fields" element={<CustomFieldsAdmin />} />
+                <Route path="settings" element={<SettingsAdmin />} />
+                <Route path="clients">
+                  <Route index element={<ClientsListPage />} />
+                  <Route path="new" element={<ClientFormPage />} />
+                  <Route path=":id" element={<ClientDetailPage />} />
+                  <Route path=":id/edit" element={<ClientFormPage />} />
+                </Route>
+                <Route path="client-relationships" element={<ClientRelationshipsAdmin />} />
+                <Route path="client-identification-types" element={<ClientIdentificationTypesAdmin />} />
+                <Route path="client-professions" element={<ClientProfessionsAdmin />} />
+                <Route path="groups">
+                  <Route index element={<GroupsListPage />} />
+                  <Route path="new" element={<GroupFormPage />} />
+                  <Route path=":id" element={<GroupDetailPage />} />
+                  <Route path=":id/edit" element={<GroupFormPage />} />
+                </Route>
+                <Route path="loan-products">
+                  <Route index element={<LoanProductsListPage />} />
+                  <Route path="new" element={<LoanProductFormPage />} />
+                  <Route path=":id/edit" element={<LoanProductFormPage />} />
+                </Route>
+                <Route path="loan-purposes" element={<LoanPurposesAdmin />} />
+                <Route path="collateral-types" element={<CollateralTypesAdmin />} />
+                <Route path="loan-applications">
+                  <Route index element={<LoanApplicationsListPage />} />
+                  <Route path="new" element={<LoanApplicationFormPage />} />
+                  <Route path=":id" element={<LoanApplicationDetailPage />} />
+                  <Route path=":id/edit" element={<LoanApplicationFormPage />} />
+                </Route>
+                <Route path="loans/:id" element={<LoanDetailPage />} />
+                <Route path="gl">
+                  <Route path="chart-of-accounts" element={<ChartOfAccountsPage />} />
+                  <Route path="journal-entries" element={<JournalEntriesPage />} />
+                  <Route path="closures" element={<ClosuresPage />} />
+                  <Route path="office-transfers" element={<OfficeTransfersPage />} />
+                  <Route path="reports" element={<ReportsPage />} />
+                </Route>
+                <Route path="savings-products">
+                  <Route index element={<SavingsProductsListPage />} />
+                  <Route path="new" element={<SavingsProductFormPage />} />
+                  <Route path=":id/edit" element={<SavingsProductFormPage />} />
+                </Route>
+                <Route path="savings">
+                  <Route index element={<SavingsAccountsListPage />} />
+                  <Route path=":id" element={<SavingsAccountDetailPage />} />
+                </Route>
               </Route>
-            </Route>
-
-            {/* Wider than ORG_MANAGERS below: Approver holds approve:BRANCH
-                (and initiate:BRANCH) server-side — can view branches and
-                hard-delete a not-yet-approved/inactive one, same as
-                Admin/SuperAdmin. Approver still lacks org:manage, so
-                BranchManagement/BranchDetail themselves hide the
-                create/edit affordances for that role. */}
-            <Route element={<RoleRoute allow={APPROVAL_ROLES} />}>
-              <Route path="branches" element={<BranchManagement />} />
-              {/* Declared before the dynamic :id route below — a literal "requests" segment must precede a dynamic single-segment one, same convention used elsewhere in this codebase. */}
-              <Route path="branches/requests/:workflowRequestId" element={<BranchProposalDetail />} />
-              <Route path="branches/:id" element={<BranchDetail />} />
-            </Route>
-
-            {/* A Manager's own branch — see Sidebar.tsx/MyBranch.tsx's own comments. */}
-            <Route element={<RoleRoute allow={BRANCH_MANAGERS} />}>
-              <Route path="my-branch" element={<MyBranch />} />
-            </Route>
-
-            <Route element={<RoleRoute allow={ORG_MANAGERS} />}>
-              <Route path="fincon" element={<FinCon />} />
-              {/* GET/PATCH /staff/:id (and the list) are org:manage-gated
-                  server-side (ADMIN/SUPERADMIN only) — a Manager guarded in
-                  here would just 403 on load, so this matches the backend
-                  exactly rather than STAFF_ONBOARDERS' wider set below. */}
-              <Route path="staff-management" element={<HrManager />} />
-              <Route path="staff-management/:id" element={<StaffDetail />} />
-            </Route>
-
-            <Route element={<RoleRoute allow={SETTINGS_ROLES} />}>
-              <Route path="settings" element={<Settings />} />
-            </Route>
-
-            <Route element={<RoleRoute allow={STAFF_ONBOARDERS} />}>
-              <Route path="onboarding/staff" element={<StaffOnboarding />} />
-            </Route>
-
-            <Route element={<RoleRoute allow={SUPER_ADMIN_ONLY} />}>
-              <Route path="notifications" element={<NotificationCenter />} />
             </Route>
           </Route>
 

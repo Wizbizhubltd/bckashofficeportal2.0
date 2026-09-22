@@ -1,5 +1,9 @@
 import Select, { StylesConfig } from 'react-select';
-import type { SelectOption } from './ReusableReactSelect';
+
+export type SelectOption = {
+  label: string;
+  value: string;
+};
 
 type ReusableMultiSelectProps = {
   label: string;
@@ -29,18 +33,13 @@ const multiSelectStyles: StylesConfig<SelectOption, true> = {
     },
   }),
   menu: (base) => ({ ...base, zIndex: 30 }),
-  // See ReusableReactSelect's own comment on menuPortal — escapes any
-  // `overflow-hidden` ancestor instead of being clipped by it.
+  // Portalled to <body> (below, via menuPortalTarget/menuPosition) so the
+  // dropdown menu escapes any `overflow-hidden` ancestor instead of being
+  // clipped by it; the portalled node's z-index just needs to sit above
+  // everything else once it's there.
   menuPortal: (base) => ({ ...base, zIndex: 9999 }),
 };
 
-/**
- * Plain-state variant of ReusableReactSelect (not Formik-bound) — this
- * feature's "assign one staff member to many branches" shape doesn't fit a
- * single Formik string field, and ReusableReactSelect's generic type binds
- * one field to one string value, so this is a sibling component rather than
- * an `isMulti` prop bolted onto that one.
- */
 export function ReusableMultiSelect({
   label,
   values,

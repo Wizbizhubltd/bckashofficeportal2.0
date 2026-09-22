@@ -1,4 +1,3 @@
-import React from 'react';
 type StatusType =
 'Active' |
 'Draft' |
@@ -8,13 +7,10 @@ type StatusType =
 'Completed' |
 'Approved' |
 'Rejected' |
-'Overdue' |
-'Disbursed' |
-'Verified' |
-'Captured' |
-'On Leave' |
 'Suspended' |
 'Inactive' |
+'Declined' |
+'Closed' |
 'New';
 interface StatusBadgeProps {
   status: StatusType;
@@ -25,9 +21,6 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       case 'Active':
       case 'Approved':
       case 'Completed':
-      case 'Disbursed':
-      case 'Verified':
-      case 'Captured':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'Pending':
       case 'Pending Approval':
@@ -35,13 +28,12 @@ export function StatusBadge({ status }: StatusBadgeProps) {
       case 'New':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'Rejected':
-      case 'Overdue':
       case 'Suspended':
+      case 'Declined':
         return 'bg-red-100 text-red-800 border-red-200';
-      case 'On Leave':
-        return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'Inactive':
       case 'Draft':
+      case 'Closed':
         return 'bg-gray-100 text-gray-600 border-gray-200';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
