@@ -97,4 +97,26 @@ export const authApi = {
       throw toFriendlyError(error);
     }
   },
+
+  /**
+   * Starts a password reset. Always succeeds for a well-formed email — unknown accounts get a
+   * decoy challenge — so the UI must not reveal whether the account exists.
+   */
+  async forgotPassword(email: string): Promise<{ challengeToken: string }> {
+    try {
+      const response = await authClient.post<{ challengeToken: string }>('/auth/password/forgot', { email });
+      return response.data;
+    } catch (error) {
+      throw toFriendlyError(error);
+    }
+  },
+
+  /** Completes a reset with the texted code. Ends any signed-in session for the account. */
+  async resetPassword(challengeToken: string, code: string, newPassword: string): Promise<void> {
+    try {
+      await authClient.post('/auth/password/reset', { challengeToken, code, newPassword });
+    } catch (error) {
+      throw toFriendlyError(error);
+    }
+  },
 };

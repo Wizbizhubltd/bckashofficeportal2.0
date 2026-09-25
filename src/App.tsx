@@ -6,6 +6,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Login } from './pages/Login';
 import { TwoFactor } from './pages/TwoFactor';
 import { VerifyOtp } from './pages/VerifyOtp';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { Home } from './pages/Home';
 import { OfficesAdmin } from './pages/admin/OfficesAdmin';
 import { CurrenciesAdmin } from './pages/admin/CurrenciesAdmin';
@@ -62,6 +63,7 @@ export function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/2fa" element={<TwoFactor />} />
           <Route path="/verify-otp" element={<VerifyOtp />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Layout />}>
