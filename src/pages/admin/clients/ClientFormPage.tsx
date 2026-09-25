@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import apiClient from '../../../api/apiClient';
 import type { ClientType } from './ClientsListPage';
+import { PHONE_MAX_DIGITS, sanitizePhoneInput, toLocalPhone } from '../../../utils/phone';
 
 interface Office {
   id: number;
@@ -74,15 +75,18 @@ function field<K extends keyof ClientFormState>(
   setForm: (form: ClientFormState) => void,
   key: K,
   label: string,
-  type: 'text' | 'date' | 'email' = 'text',
+  type: 'text' | 'date' | 'email' | 'tel' = 'text',
 ) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input
         type={type}
+        inputMode={type === 'tel' ? 'numeric' : undefined}
+        maxLength={type === 'tel' ? PHONE_MAX_DIGITS : undefined}
+        placeholder={type === 'tel' ? '08031234567' : undefined}
         value={form[key]}
-        onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+        onChange={(e) => setForm({ ...form, [key]: type === 'tel' ? sanitizePhoneInput(e.target.value) : e.target.value })}
         className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
       />
     </div>
@@ -124,8 +128,8 @@ export function ClientFormPage() {
           gender: c.gender ?? '',
           maritalStatus: c.maritalStatus ?? '',
           bvn: c.bvn ?? '',
-          mobile: c.mobile ?? '',
-          phone: c.phone ?? '',
+          mobile: toLocalPhone(c.mobile),
+          phone: toLocalPhone(c.phone),
           email: c.email ?? '',
           occupation: c.occupation ?? '',
           officeId: c.officeId?.toString() ?? '',
@@ -271,8 +275,8 @@ export function ClientFormPage() {
           <h2 className="text-sm font-heading font-bold text-gray-500 uppercase tracking-wide mb-4">Contact & KYC</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {field(form, setForm, 'bvn', 'BVN')}
-            {field(form, setForm, 'mobile', 'Mobile')}
-            {field(form, setForm, 'phone', 'Phone')}
+            {field(form, setForm, 'mobile', 'Mobile', 'tel')}
+            {field(form, setForm, 'phone', 'Phone', 'tel')}
             {field(form, setForm, 'email', 'Email', 'email')}
             {field(form, setForm, 'joinedDate', 'Joined Date', 'date')}
           </div>

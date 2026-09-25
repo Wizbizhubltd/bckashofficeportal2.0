@@ -5,6 +5,7 @@ import { PlusIcon, SearchIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
 import { Pagination } from '../../../components/Pagination';
 import { StatusBadge } from '../../../components/StatusBadge';
+import { PHONE_MAX_DIGITS, sanitizePhoneInput } from '../../../utils/phone';
 
 export type ClientStatus = 'Pending' | 'Active' | 'Inactive' | 'Declined' | 'Closed';
 export type ClientType = 'Individual' | 'Business' | 'Ngo' | 'Other';
@@ -142,8 +143,11 @@ export function ClientsListPage() {
           className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
         />
         <input
+          type="tel"
+          inputMode="numeric"
+          maxLength={PHONE_MAX_DIGITS}
           value={mobile}
-          onChange={(e) => setMobile(e.target.value)}
+          onChange={(e) => setMobile(sanitizePhoneInput(e.target.value))}
           placeholder="Mobile"
           className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
         />

@@ -256,7 +256,7 @@ export function ClientDetailPage() {
             { key: 'clientRelationshipId', label: 'Relationship Type ID', type: 'number' },
             { key: 'firstName', label: 'First Name', type: 'text' },
             { key: 'lastName', label: 'Last Name', type: 'text' },
-            { key: 'mobile', label: 'Mobile', type: 'text' },
+            { key: 'mobile', label: 'Mobile', type: 'tel' },
             { key: 'email', label: 'Email', type: 'text' },
             { key: 'notes', label: 'Notes', type: 'textarea' },
           ]}
@@ -278,7 +278,7 @@ export function ClientDetailPage() {
             { key: 'clientRelationshipId', label: 'Relationship Type ID', type: 'number' },
             { key: 'firstName', label: 'First Name', type: 'text' },
             { key: 'lastName', label: 'Last Name', type: 'text' },
-            { key: 'mobile', label: 'Mobile', type: 'text' },
+            { key: 'mobile', label: 'Mobile', type: 'tel' },
             { key: 'email', label: 'Email', type: 'text' },
             { key: 'notes', label: 'Notes', type: 'textarea' },
           ]}

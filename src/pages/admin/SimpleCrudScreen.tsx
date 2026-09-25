@@ -3,13 +3,14 @@ import toast from 'react-hot-toast';
 import { PlusIcon, PencilIcon, TrashIcon, XIcon, AlertTriangleIcon } from 'lucide-react';
 import apiClient from '../../api/apiClient';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
+import { PHONE_MAX_DIGITS, sanitizePhoneInput, toLocalPhone } from '../../utils/phone';
 
 export interface CrudField<T> {
   // Deliberately excludes 'id' — fields describe the editable form, which never includes
   // the primary key, and modalItem's type (T | Omit<T, 'id'>) only guarantees these keys.
   key: keyof Omit<T, 'id'>;
   label: string;
-  type: 'text' | 'number' | 'checkbox' | 'textarea';
+  type: 'text' | 'number' | 'checkbox' | 'textarea' | 'tel';
 }
 
 export interface CrudColumn<T> {
@@ -208,6 +209,16 @@ export function SimpleCrudScreen<T extends { id: number }>({
                           onChange={(e) => setModalItem({ ...modalItem, [field.key]: e.target.value })}
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                           rows={3}
+                        />
+                      ) : field.type === 'tel' ? (
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          maxLength={PHONE_MAX_DIGITS}
+                          placeholder="08031234567"
+                          value={toLocalPhone(modalItem[field.key] as string | null | undefined)}
+                          onChange={(e) => setModalItem({ ...modalItem, [field.key]: sanitizePhoneInput(e.target.value) })}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                         />
                       ) : (
                         <input

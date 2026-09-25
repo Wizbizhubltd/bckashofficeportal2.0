@@ -197,7 +197,7 @@ export function LoanApplicationDetailPage() {
             { key: 'isClient', label: 'Is an existing client', type: 'checkbox' },
             { key: 'firstName', label: 'First Name', type: 'text' },
             { key: 'lastName', label: 'Last Name', type: 'text' },
-            { key: 'mobile', label: 'Mobile', type: 'text' },
+            { key: 'mobile', label: 'Mobile', type: 'tel' },
             { key: 'amount', label: 'Guaranteed Amount', type: 'number' },
           ]}
           emptyItem={{ clientId: null, isClient: false, firstName: '', lastName: '', mobile: '', amount: null }}
