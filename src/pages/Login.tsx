@@ -22,8 +22,8 @@ export function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [signedOutReason] = useState(takeSignedOutReason);
-  // Set by the forgot-password page after a successful reset.
-  const passwordReset = (location.state as { passwordReset?: boolean } | null)?.passwordReset === true;
+  // Set by pages that send the user here on purpose, e.g. after a password reset or change.
+  const notice = (location.state as { notice?: string } | null)?.notice;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -32,7 +32,7 @@ export function Login() {
 
     try {
       const { requiresTotp } = await login(email.trim(), password);
-      navigate(requiresTotp ? '/2fa' : '/verify-otp', { replace: true });
+      navigate(requiresTotp ? '/2fa' : '/verify-otp', { replace: true, state: { email: email.trim() } });
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'An error occurred. Please try again.');
     } finally {
@@ -52,10 +52,10 @@ export function Login() {
         </div>
       )}
 
-      {passwordReset && !error && (
+      {notice && !error && (
         <div role="status" className="mb-5 flex items-start gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
           <CheckCircle2Icon size={16} className="mt-0.5 flex-shrink-0" />
-          Your password has been reset. Sign in with your new password.
+          {notice}
         </div>
       )}
 

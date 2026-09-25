@@ -80,7 +80,7 @@ export function ForgotPassword() {
 
     try {
       await authApi.resetPassword(challengeToken, code, newPassword);
-      navigate('/login', { replace: true, state: { passwordReset: true } });
+      navigate('/login', { replace: true, state: { notice: 'Your password has been reset. Sign in with your new password.' } });
     } catch (resetError) {
       setError(resetError instanceof Error ? resetError.message : 'Could not reset your password. Please try again.');
     } finally {

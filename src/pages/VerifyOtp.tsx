@@ -1,15 +1,38 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AlertCircleIcon, CheckCircle2Icon, LoaderIcon } from 'lucide-react';
-import { Logo } from '../components/Logo';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import {
+  AlertCircleIcon,
+  ArrowLeftIcon,
+  CheckCircle2Icon,
+  ClockIcon,
+  LoaderIcon,
+  MailIcon,
+  MessageSquareIcon,
+  RotateCwIcon,
+  ShieldCheckIcon,
+} from 'lucide-react';
+import { AuthLayout, authPrimaryButtonClass } from '../components/AuthLayout';
+import { OtpInput } from '../components/OtpInput';
 import { useAuth } from '../context/AuthContext';
 
 // Matches the server's resend cooldown; the server enforces it regardless of this timer.
 const RESEND_COOLDOWN_SECONDS = 60;
+const CODE_LENGTH = 6;
+
+/** "j***n@bckash.com" — enough to recognise the address without showing it in full. */
+function maskEmail(email: string): string {
+  const [name, domain] = email.split('@');
+  if (!name || !domain) return email;
+  const visible = name.length <= 2 ? name[0] : `${name[0]}${'*'.repeat(Math.min(name.length - 2, 5))}${name[name.length - 1]}`;
+  return `${visible}@${domain}`;
+}
 
 export function VerifyOtp() {
-  const { verifyOtp, resendOtp, pendingChallengeToken } = useAuth();
+  const { verifyOtp, resendOtp, pendingChallengeToken, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Passed by the login page; lost on a refresh, in which case the copy stays generic.
+  const email = (location.state as { email?: string } | null)?.email;
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -23,13 +46,15 @@ export function VerifyOtp() {
     return () => clearTimeout(timer);
   }, [resendCooldown]);
 
+  // A successful verify clears the challenge and signs in within the same update, so this re-renders
+  // before handleSubmit's navigate runs — send a signed-in user on to the app, not back to login.
   if (!pendingChallengeToken) {
-    navigate('/login', { replace: true });
-    return null;
+    return <Navigate to={isAuthenticated ? '/' : '/login'} replace />;
   }
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
+  const handleSubmit = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (code.length !== CODE_LENGTH || loading) return;
     setError('');
     setNotice('');
     setLoading(true);
@@ -39,6 +64,7 @@ export function VerifyOtp() {
       navigate('/', { replace: true });
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'An error occurred. Please try again.');
+      setCode('');
     } finally {
       setLoading(false);
     }
@@ -61,80 +87,126 @@ export function VerifyOtp() {
     }
   };
 
+  const handleBackToLogin = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
+  const cooldownLabel = `0:${String(resendCooldown).padStart(2, '0')}`;
+
   return (
-    <div className="min-h-screen flex w-full font-body items-center justify-center bg-gray-50 p-8">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-        <div className="mb-8 flex justify-center">
-          <Logo width={140} height={46} />
+    <AuthLayout>
+      <div className="relative mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-[#0f3a2d] text-white shadow-lg shadow-primary/25">
+        <ShieldCheckIcon size={26} />
+        <span className="absolute -right-1 -top-1 flex h-4 w-4">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
+          <span className="relative inline-flex h-4 w-4 rounded-full border-2 border-white bg-accent" />
+        </span>
+      </div>
+
+      <h2 className="font-heading text-2xl font-bold text-slate-900">Verify it's you</h2>
+      <p className="mt-1.5 text-sm text-slate-500">
+        We've sent a {CODE_LENGTH}-digit verification code to
+        {email ? (
+          <>
+            {' '}
+            the email <span className="font-medium text-slate-700">{maskEmail(email)}</span> and the phone number on your
+            account.
+          </>
+        ) : (
+          ' the email and phone number on your account.'
+        )}
+      </p>
+
+      <div className="mt-5 mb-7 grid grid-cols-2 gap-2 text-xs">
+        <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-slate-600 ring-1 ring-slate-200/70">
+          <MailIcon size={14} className="text-primary" />
+          Check your inbox
+        </div>
+        <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-slate-600 ring-1 ring-slate-200/70">
+          <MessageSquareIcon size={14} className="text-primary" />
+          Or your SMS messages
+        </div>
+      </div>
+
+      {error && (
+        <div role="alert" className="mb-5 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertCircleIcon size={16} className="mt-0.5 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {notice && (
+        <div role="status" className="mb-5 flex items-start gap-2.5 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+          <CheckCircle2Icon size={16} className="mt-0.5 flex-shrink-0" />
+          {notice}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700">Verification code</span>
+            <span className="flex items-center gap-1 text-xs text-slate-400">
+              <ClockIcon size={12} />
+              Expires in 5 minutes
+            </span>
+          </div>
+          <OtpInput
+            value={code}
+            onChange={(next) => {
+              setCode(next);
+              if (error) setError('');
+            }}
+            length={CODE_LENGTH}
+            disabled={loading}
+            hasError={!!error}
+            autoFocus
+          />
         </div>
 
-        <h2 className="text-2xl font-heading font-bold text-primary mb-2 text-center">Verify Your Identity</h2>
-        <p className="text-gray-500 mb-8 text-center">Enter the 6-digit code sent to your email and phone on file</p>
-
-        {error && (
-          <div className="flex items-center gap-2 p-3 mb-5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            <AlertCircleIcon size={16} className="flex-shrink-0" />
-            {error}
-          </div>
-        )}
-
-        {notice && (
-          <div role="status" className="flex items-center gap-2 p-3 mb-5 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-            <CheckCircle2Icon size={16} className="flex-shrink-0" />
-            {notice}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-          <div>
-            <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-1">
-              Verification Code
-            </label>
-            <input
-              id="code"
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={code}
-              onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all tracking-[0.5em] text-center text-lg"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading || code.length !== 6}
-            className="w-full bg-accent hover:bg-[#e64a19] text-white font-heading font-bold py-3 rounded-lg transition-colors shadow-md mt-4 flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <>
-                <LoaderIcon size={18} className="animate-spin" />
-                Verifying...
-              </>
-            ) : (
-              'Verify'
-            )}
-          </button>
-        </form>
-
-        <p className="text-sm text-gray-500 text-center mt-6">
-          Didn't get the code?{' '}
-          {resendCooldown > 0 ? (
-            <span className="text-gray-400">Resend in {resendCooldown}s</span>
+        <button type="submit" disabled={loading || code.length !== CODE_LENGTH} className={authPrimaryButtonClass}>
+          {loading ? (
+            <>
+              <LoaderIcon size={18} className="animate-spin" />
+              Verifying...
+            </>
           ) : (
-            <button
-              type="button"
-              onClick={handleResend}
-              disabled={resending}
-              className="font-medium text-primary hover:underline disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {resending ? 'Sending...' : 'Resend code'}
-            </button>
+            <>
+              <ShieldCheckIcon size={17} />
+              Verify and continue
+            </>
           )}
-        </p>
-        <p className="text-xs text-gray-400 text-center mt-2">The code expires in 5 minutes.</p>
+        </button>
+      </form>
+
+      <div className="mt-6 flex items-center justify-center gap-1.5 text-sm text-slate-500">
+        Didn't receive a code?
+        {resendCooldown > 0 ? (
+          <span className="font-medium tabular-nums text-slate-400">Resend in {cooldownLabel}</span>
+        ) : (
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resending}
+            className="inline-flex items-center gap-1 font-medium text-primary hover:text-accent transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RotateCwIcon size={13} className={resending ? 'animate-spin' : ''} />
+            {resending ? 'Sending...' : 'Resend code'}
+          </button>
+        )}
       </div>
-    </div>
+
+      <div className="mt-8 border-t border-slate-100 pt-5 text-center">
+        <button
+          type="button"
+          onClick={handleBackToLogin}
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-primary"
+        >
+          <ArrowLeftIcon size={15} />
+          Back to sign in
+        </button>
+      </div>
+    </AuthLayout>
   );
 }

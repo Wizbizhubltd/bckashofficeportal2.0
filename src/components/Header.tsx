@@ -10,7 +10,7 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
 
   const getPageTitle = () => {
     const path = location.pathname;
-    if (path === '/') return 'Home';
+    if (path === '/') return 'Dashboard';
     if (path === '/admin/offices') return 'Offices';
     if (path === '/admin/currencies') return 'Currencies';
     if (path === '/admin/countries') return 'Countries';

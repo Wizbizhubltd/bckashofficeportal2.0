@@ -21,7 +21,6 @@ interface AuthContextType {
   resendOtp: () => Promise<void>;
   /** True while the signed-in user is still on a temporary password. */
   mustChangePassword: boolean;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -95,13 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setPendingChallengeToken(challengeToken);
   };
 
-  const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
-    const result = await authApi.changePassword(currentPassword, newPassword);
-    localStorage.setItem(USER_DATA_KEY, JSON.stringify(result.userData));
-    setUser(result.userData);
-    storeTokens(result);
-  };
-
   const logout = () => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -126,7 +118,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Read from the token rather than stored user data so it also covers the authenticator-app
         // sign-in path, which returns tokens without user data.
         mustChangePassword: accessToken ? decodeJwt<AccessTokenClaims>(accessToken)?.pwd_change_required === 'true' : false,
-        changePassword,
         logout,
       }}
     >

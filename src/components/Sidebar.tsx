@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { useAuth } from '../context/AuthContext';
+import apiClient from '../api/apiClient';
+import { humanize, initials } from '../utils/format';
 
 const ADMIN_LINKS = [
   { to: '/admin/offices', label: 'Offices', icon: Building2Icon },
@@ -77,7 +79,21 @@ interface SidebarProps {
 
 export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
   const navigate = useNavigate();
-  const { userId, logout } = useAuth();
+  const { user, logout } = useAuth();
+  // Stored login data only exists for the emailed-code sign-in; the authenticator-app path has none,
+  // so fetch the profile to cover both.
+  const [profile, setProfile] = useState<{ firstName: string | null; lastName: string | null; email: string; userClass: string | null } | null>(null);
+
+  useEffect(() => {
+    apiClient
+      .get<{ firstName: string | null; lastName: string | null; email: string; userClass: string | null }>('/users/me')
+      .then((response) => setProfile(response.data))
+      .catch(() => undefined);
+  }, []);
+
+  const displayName =
+    user?.fullName || [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || user?.email || profile?.email || 'Signed in';
+  const userClass = profile?.userClass ?? user?.user_class;
   const [adminExpanded, setAdminExpanded] = useState(true);
   const [clientsExpanded, setClientsExpanded] = useState(true);
   const [loansExpanded, setLoansExpanded] = useState(true);
@@ -295,12 +311,13 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
           onClick={handleLogout}
           className="group flex items-center px-2 py-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
         >
-          <div className="w-10 h-10 rounded-full border-2 border-white/20 bg-white/10 text-gray-300 flex items-center justify-center">
-            <UserIcon size={18} />
+          <div className="w-10 h-10 flex-shrink-0 rounded-full border-2 border-white/20 bg-white/10 text-white text-sm font-heading font-semibold flex items-center justify-center">
+            {initials(displayName) || <UserIcon size={18} />}
           </div>
 
           <div className="ml-3 flex-1 overflow-hidden">
-            <p className="text-sm font-heading font-bold text-white truncate">{userId ?? 'Signed in'}</p>
+            <p className="text-sm font-heading font-bold text-white truncate" title={displayName}>{displayName}</p>
+            {userClass && <p className="text-xs text-white/60 truncate">{humanize(userClass)}</p>}
           </div>
           <span className="w-8 h-8 rounded-full bg-white/10 text-gray-300 flex items-center justify-center group-hover:bg-white/15 group-hover:text-accent transition-colors">
             <LogOutIcon size={16} />
