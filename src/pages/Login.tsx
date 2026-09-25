@@ -3,6 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { AlertCircleIcon, LoaderIcon } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { useAuth } from '../context/AuthContext';
+import { SIGNED_OUT_REASON_KEY } from '../config/storageKeys';
+
+// Read once and cleared, so the notice shows on the redirect to this page but not on later visits.
+function takeSignedOutReason(): string | null {
+  const reason = sessionStorage.getItem(SIGNED_OUT_REASON_KEY);
+  sessionStorage.removeItem(SIGNED_OUT_REASON_KEY);
+  return reason;
+}
 
 export function Login() {
   const { login } = useAuth();
@@ -11,6 +19,7 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [signedOutReason] = useState(takeSignedOutReason);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -36,6 +45,13 @@ export function Login() {
 
         <h2 className="text-2xl font-heading font-bold text-primary mb-2 text-center">Sign In</h2>
         <p className="text-gray-500 mb-8 text-center">BCKash Portal</p>
+
+        {signedOutReason && !error && (
+          <div role="status" className="flex items-center gap-2 p-3 mb-5 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+            <AlertCircleIcon size={16} className="flex-shrink-0" />
+            {signedOutReason}
+          </div>
+        )}
 
         {error && (
           <div className="flex items-center gap-2 p-3 mb-5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">

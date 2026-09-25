@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { ChangePasswordModal } from './ChangePasswordModal';
 import { useAuth } from '../context/AuthContext';
 
 export function Layout() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, mustChangePassword } = useAuth();
   const location = useLocation();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -26,6 +27,8 @@ export function Layout() {
           </div>
         </main>
       </div>
+
+      {mustChangePassword && <ChangePasswordModal />}
     </div>
   );
 }

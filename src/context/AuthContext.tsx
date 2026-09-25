@@ -1,15 +1,13 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { decodeJwt } from '../utils/jwt';
 import { authApi, isTotpChallenge, type TokenResponse, type UserData } from '../api/authApi';
-
-const ACCESS_TOKEN_KEY = 'bckashAccessToken';
-const REFRESH_TOKEN_KEY = 'bckashRefreshToken';
-const USER_DATA_KEY = 'bckashUserData';
-const PENDING_CHALLENGE_KEY = 'bckashPendingChallengeToken';
+import { ACCESS_TOKEN_KEY, PENDING_CHALLENGE_KEY, REFRESH_TOKEN_KEY, USER_DATA_KEY } from '../config/storageKeys';
 
 interface AccessTokenClaims {
   sub: string;
   office_id?: string;
+  /** "true" while the user must replace a temporary password — the API rejects everything else until then. */
+  pwd_change_required?: string;
 }
 
 interface AuthContextType {
@@ -20,6 +18,10 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ requiresTotp: boolean }>;
   verifyTwoFactor: (code: string) => Promise<void>;
   verifyOtp: (code: string) => Promise<void>;
+  resendOtp: () => Promise<void>;
+  /** True while the signed-in user is still on a temporary password. */
+  mustChangePassword: boolean;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -83,6 +85,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     storeTokens(result);
   };
 
+  const resendOtp = async (): Promise<void> => {
+    if (!pendingChallengeToken) {
+      throw new Error('Login session expired — please sign in again.');
+    }
+
+    const { challengeToken } = await authApi.resendOtp(pendingChallengeToken);
+    sessionStorage.setItem(PENDING_CHALLENGE_KEY, challengeToken);
+    setPendingChallengeToken(challengeToken);
+  };
+
+  const changePassword = async (currentPassword: string, newPassword: string): Promise<void> => {
+    const result = await authApi.changePassword(currentPassword, newPassword);
+    localStorage.setItem(USER_DATA_KEY, JSON.stringify(result.userData));
+    setUser(result.userData);
+    storeTokens(result);
+  };
+
   const logout = () => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -103,6 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         verifyTwoFactor,
         verifyOtp,
+        resendOtp,
+        // Read from the token rather than stored user data so it also covers the authenticator-app
+        // sign-in path, which returns tokens without user data.
+        mustChangePassword: accessToken ? decodeJwt<AccessTokenClaims>(accessToken)?.pwd_change_required === 'true' : false,
+        changePassword,
         logout,
       }}
     >

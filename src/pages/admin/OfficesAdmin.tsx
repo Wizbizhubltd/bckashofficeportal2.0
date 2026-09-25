@@ -3,13 +3,27 @@ import toast from 'react-hot-toast';
 import { PlusIcon, PencilIcon, PowerIcon, XIcon, AlertTriangleIcon } from 'lucide-react';
 import apiClient, { type ApiError } from '../../api/apiClient';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
+import { useLocationOptions } from '../../hooks/useLocationOptions';
 
 interface Office {
   id: number;
   name: string | null;
   parentId: number | null;
+  externalId: string | null;
+  openingDate: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
+  managerId: number | null;
   active: boolean;
   defaultOffice: boolean;
+  officeCode: string | null;
+  stateId: number | null;
+  lgaId: number | null;
+  cityId: number | null;
+  zoneId: number | null;
+  zoneName: string | null;
 }
 
 interface OfficeFormState {
@@ -17,6 +31,10 @@ interface OfficeFormState {
   name: string;
   parentId: number | null;
   defaultOffice: boolean;
+  stateId: number | null;
+  lgaId: number | null;
+  cityId: number | null;
+  zoneId: number | null;
 }
 
 interface OfficeInUse {
@@ -24,7 +42,9 @@ interface OfficeInUse {
   openLoanCount: number;
 }
 
-const EMPTY_FORM: OfficeFormState = { name: '', parentId: null, defaultOffice: false };
+const EMPTY_FORM: OfficeFormState = { name: '', parentId: null, defaultOffice: false, stateId: null, lgaId: null, cityId: null, zoneId: null };
+
+const selectClass = 'w-full px-3 py-2 rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none disabled:bg-gray-50';
 
 /** Renders the office hierarchy as an indented list — depth from walking each office's ParentId chain. */
 function buildDepthMap(offices: Office[]): Map<number, number> {
@@ -55,6 +75,7 @@ export function OfficesAdmin() {
   const [form, setForm] = useState<OfficeFormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [inUsePrompt, setInUsePrompt] = useState<{ office: Office; counts: OfficeInUse } | null>(null);
+  const { states, lgas, cities, zones } = useLocationOptions(form?.stateId ?? null, form?.lgaId ?? null);
 
   const load = async () => {
     setLoading(true);
@@ -81,17 +102,23 @@ export function OfficesAdmin() {
     }
     setSaving(true);
     try {
+      // This form only edits some fields — carry the rest over unchanged instead of clearing them.
+      const existing = offices.find((o) => o.id === form.id);
       const payload = {
         name: form.name,
         parentId: form.parentId,
-        externalId: null,
-        openingDate: null,
-        address: null,
-        phone: null,
-        email: null,
-        notes: null,
-        managerId: null,
+        externalId: existing?.externalId ?? null,
+        openingDate: existing?.openingDate ?? null,
+        address: existing?.address ?? null,
+        phone: existing?.phone ?? null,
+        email: existing?.email ?? null,
+        notes: existing?.notes ?? null,
+        managerId: existing?.managerId ?? null,
         defaultOffice: form.defaultOffice,
+        stateId: form.stateId,
+        lgaId: form.lgaId,
+        cityId: form.cityId,
+        zoneId: form.zoneId,
       };
 
       if (form.id) {
@@ -154,6 +181,8 @@ export function OfficesAdmin() {
           <thead className="bg-gray-50 text-left text-gray-500">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
+              <th className="px-4 py-3 font-medium">Code</th>
+              <th className="px-4 py-3 font-medium">Zone</th>
               <th className="px-4 py-3 font-medium">Status</th>
               <th className="px-4 py-3 w-24" />
             </tr>
@@ -161,11 +190,11 @@ export function OfficesAdmin() {
           <tbody className="divide-y divide-gray-100">
             {loading ? (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-gray-400">Loading…</td>
+                <td colSpan={5} className="px-4 py-6 text-center text-gray-400">Loading…</td>
               </tr>
             ) : sorted.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-gray-400">No offices yet.</td>
+                <td colSpan={5} className="px-4 py-6 text-center text-gray-400">No offices yet.</td>
               </tr>
             ) : (
               sorted.map((office) => (
@@ -177,6 +206,8 @@ export function OfficesAdmin() {
                       {office.defaultOffice && <span className="ml-2 text-xs text-primary">(default)</span>}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-gray-600 font-mono text-xs whitespace-nowrap">{office.officeCode ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-600">{office.zoneName ?? '—'}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-1 rounded-full ${office.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {office.active ? 'Active' : 'Inactive'}
@@ -185,7 +216,18 @@ export function OfficesAdmin() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 justify-end">
                       <button
-                        onClick={() => setForm({ id: office.id, name: office.name ?? '', parentId: office.parentId, defaultOffice: office.defaultOffice })}
+                        onClick={() =>
+                          setForm({
+                            id: office.id,
+                            name: office.name ?? '',
+                            parentId: office.parentId,
+                            defaultOffice: office.defaultOffice,
+                            stateId: office.stateId,
+                            lgaId: office.lgaId,
+                            cityId: office.cityId,
+                            zoneId: office.zoneId,
+                          })
+                        }
                         className="text-gray-400 hover:text-primary"
                         aria-label="Edit"
                       >
@@ -205,7 +247,7 @@ export function OfficesAdmin() {
 
       {form && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-full overflow-y-auto p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-heading font-bold text-primary">{form.id ? 'Edit Office' : 'Add Office'}</h2>
               <button onClick={() => setForm(null)} className="text-gray-400 hover:text-gray-600">
@@ -236,6 +278,69 @@ export function OfficesAdmin() {
                   ))}
                 </select>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="office-state" className="block text-sm font-medium text-gray-700 mb-1">State *</label>
+                  <select
+                    id="office-state"
+                    value={form.stateId ?? ''}
+                    onChange={(e) => setForm({ ...form, stateId: e.target.value ? Number(e.target.value) : null, lgaId: null, cityId: null })}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    {states.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="office-lga" className="block text-sm font-medium text-gray-700 mb-1">LGA *</label>
+                  <select
+                    id="office-lga"
+                    value={form.lgaId ?? ''}
+                    onChange={(e) => setForm({ ...form, lgaId: e.target.value ? Number(e.target.value) : null, cityId: null })}
+                    disabled={!form.stateId}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    {lgas.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="office-city" className="block text-sm font-medium text-gray-700 mb-1">City *</label>
+                  <select
+                    id="office-city"
+                    value={form.cityId ?? ''}
+                    onChange={(e) => setForm({ ...form, cityId: e.target.value ? Number(e.target.value) : null })}
+                    disabled={!form.lgaId}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    {cities.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="office-zone" className="block text-sm font-medium text-gray-700 mb-1">Zone *</label>
+                  <select
+                    id="office-zone"
+                    value={form.zoneId ?? ''}
+                    onChange={(e) => setForm({ ...form, zoneId: e.target.value ? Number(e.target.value) : null })}
+                    className={selectClass}
+                  >
+                    <option value="">Select...</option>
+                    {zones.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {form.lgaId && cities.length === 0 && (
+                <p className="text-xs text-gray-500">No cities in this LGA yet — a super admin can add them in the control portal.</p>
+              )}
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
                   type="checkbox"
@@ -253,7 +358,7 @@ export function OfficesAdmin() {
               </button>
               <button
                 onClick={() => void handleSave()}
-                disabled={saving}
+                disabled={saving || !form.name || !form.stateId || !form.lgaId || !form.cityId || !form.zoneId}
                 className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60"
               >
                 {saving ? 'Saving…' : 'Save'}
