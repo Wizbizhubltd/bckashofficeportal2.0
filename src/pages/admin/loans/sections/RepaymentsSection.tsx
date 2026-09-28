@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { PlusIcon, RotateCcwIcon } from 'lucide-react';
 import apiClient from '../../../../api/apiClient';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
+import { formatMoney } from '../../../../utils/money';
 
 interface LoanTransaction {
   id: number;
@@ -121,9 +122,9 @@ export function RepaymentsSection({ loanId, onChanged }: RepaymentsSectionProps)
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">{t.transactionType}</td>
                   <td className="px-4 py-3 text-gray-700">{t.date}</td>
-                  <td className="px-4 py-3 text-gray-700">{t.amount?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700">{t.principal?.toLocaleString() ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-700">{t.interest?.toLocaleString() ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(t.amount)}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(t.principal)}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(t.interest)}</td>
                   <td className="px-4 py-3">
                     {t.reversed ? (
                       <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700">Reversed</span>

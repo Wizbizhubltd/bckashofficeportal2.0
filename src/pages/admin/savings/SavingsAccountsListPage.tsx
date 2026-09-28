@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { PlusIcon, XIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
+import { formatMoney } from '../../../utils/money';
 
 interface SavingsProduct {
   id: number;
@@ -101,7 +102,7 @@ export function SavingsAccountsListPage() {
                     <Link to={`/admin/savings/${a.id}`} className="text-primary hover:underline font-medium">{a.accountNumber ?? `#${a.id}`}</Link>
                   </td>
                   <td className="px-4 py-3 text-gray-700">{a.clientId}</td>
-                  <td className="px-4 py-3 text-gray-700">{a.balance?.toLocaleString() ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(a.balance)}</td>
                   <td className="px-4 py-3">
                     <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">{a.status}</span>
                   </td>

@@ -28,6 +28,7 @@ import {
   LockIcon,
   BarChart3Icon,
   PiggyBankIcon,
+  HandCoinsIcon,
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { useAuth } from '../context/AuthContext';
@@ -123,6 +124,10 @@ export function Sidebar({ mobileOpen, onMobileClose }: SidebarProps) {
         <NavLink to="/" end className={navLinkClasses}>
           <LayoutDashboardIcon size={20} className="mr-3" />
           <span>Home</span>
+        </NavLink>
+        <NavLink to="/office-funding" className={navLinkClasses}>
+          <HandCoinsIcon size={20} className="mr-3" />
+          <span>Office Funding</span>
         </NavLink>
 
         <NavLink to="/admin/groups" className={navLinkClasses}>

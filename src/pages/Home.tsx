@@ -24,6 +24,7 @@ import { useAuth } from '../context/AuthContext';
 import { humanize, initials } from '../utils/format';
 import type { ClientListItem } from './admin/clients/ClientsListPage';
 import type { GroupListItem } from './admin/groups/GroupsListPage';
+import { formatMoney, formatMoneyCompact } from '../utils/money';
 
 interface DashboardSummary {
   officesCount: number;
@@ -69,8 +70,6 @@ type Section<T> = { status: 'loading' } | { status: 'error' } | { status: 'ready
 
 const BRIEF_SIZE = 5;
 
-const naira = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 });
-const nairaCompact = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', notation: 'compact', maximumFractionDigits: 1 });
 const count = new Intl.NumberFormat('en-NG');
 
 function useSection<T>(load: () => Promise<T>, reloadKey: number): Section<T> {
@@ -221,16 +220,16 @@ export function Home() {
             icon={ArrowUpRightIcon}
             tone="violet"
             label={`Disbursed in ${monthName}`}
-            value={summary.status === 'ready' ? nairaCompact.format(summary.data.disbursementsThisMonthAmount) : null}
-            valueTitle={summary.status === 'ready' ? naira.format(summary.data.disbursementsThisMonthAmount) : undefined}
+            value={summary.status === 'ready' ? formatMoneyCompact(summary.data.disbursementsThisMonthAmount) : null}
+            valueTitle={summary.status === 'ready' ? formatMoney(summary.data.disbursementsThisMonthAmount, 0) : undefined}
             detail={summary.status === 'ready' ? `${count.format(summary.data.disbursementsThisMonthCount)} disbursements` : null}
           />
           <StatCard
             icon={ArrowDownLeftIcon}
             tone="green"
             label={`Repaid in ${monthName}`}
-            value={summary.status === 'ready' ? nairaCompact.format(summary.data.repaymentsThisMonthAmount) : null}
-            valueTitle={summary.status === 'ready' ? naira.format(summary.data.repaymentsThisMonthAmount) : undefined}
+            value={summary.status === 'ready' ? formatMoneyCompact(summary.data.repaymentsThisMonthAmount) : null}
+            valueTitle={summary.status === 'ready' ? formatMoney(summary.data.repaymentsThisMonthAmount, 0) : undefined}
             detail={summary.status === 'ready' ? `${count.format(summary.data.repaymentsThisMonthCount)} repayments` : null}
           />
           <StatCard
@@ -265,7 +264,7 @@ export function Home() {
               to={`/admin/loan-applications/${item.id}`}
               title={`Application #${item.id}`}
               subtitle={`${item.clientType} loan`}
-              trailing={<span className="font-heading text-sm font-semibold text-slate-800">{naira.format(item.amount)}</span>}
+              trailing={<span className="font-heading text-sm font-semibold text-slate-800">{formatMoney(item.amount, 0)}</span>}
             />
           )}
         />

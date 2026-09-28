@@ -8,6 +8,7 @@ import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { SimpleCrudScreen } from '../SimpleCrudScreen';
 import { ScheduleSection } from './sections/ScheduleSection';
 import { RepaymentsSection } from './sections/RepaymentsSection';
+import { formatMoney } from '../../../utils/money';
 
 type LoanStatus = 'New' | 'Pending' | 'Approved' | 'NeedChanges' | 'Disbursed' | 'Declined' | 'Rejected' | 'Withdrawn' | 'WrittenOff' | 'Closed' | 'PendingReschedule' | 'Rescheduled' | 'Paid';
 
@@ -204,7 +205,7 @@ export function LoanDetailPage() {
             )}
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {loan.clientType} · Approved {loan.approvedAmount?.toLocaleString() ?? '—'}
+            {loan.clientType} · Approved {formatMoney(loan.approvedAmount)}
           </p>
         </div>
 
@@ -273,9 +274,9 @@ export function LoanDetailPage() {
 
       {section === 'profile' && (
         <div className="bg-white rounded-xl border border-gray-100 p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <ProfileField label="Applied Amount" value={loan.appliedAmount?.toLocaleString() ?? null} />
-          <ProfileField label="Approved Amount" value={loan.approvedAmount?.toLocaleString() ?? null} />
-          <ProfileField label="Disbursed Principal" value={loan.principal?.toLocaleString() ?? null} />
+          <ProfileField label="Applied Amount" value={loan.appliedAmount != null ? formatMoney(loan.appliedAmount) : null} />
+          <ProfileField label="Approved Amount" value={loan.approvedAmount != null ? formatMoney(loan.approvedAmount) : null} />
+          <ProfileField label="Disbursed Principal" value={loan.principal != null ? formatMoney(loan.principal) : null} />
           <ProfileField label="Interest Rate" value={loan.interestRate ? `${loan.interestRate}%` : null} />
           <ProfileField label="Term" value={loan.loanTerm ? `${loan.loanTerm} ${loan.loanTermType ?? ''}` : null} />
           <ProfileField label="Disbursement Date" value={loan.disbursementDate} />
@@ -508,7 +509,7 @@ function RescheduleRequestsList({ loanId, refreshToken, onChanged }: { loanId: n
           <tbody className="divide-y divide-gray-100">
             {items.map((r) => (
               <tr key={r.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 text-gray-700">{r.principal?.toLocaleString()}</td>
+                <td className="px-4 py-3 text-gray-700">{formatMoney(r.principal)}</td>
                 <td className="px-4 py-3 text-gray-700">{r.rescheduleFromDate}</td>
                 <td className="px-4 py-3 text-gray-700">{r.status}</td>
                 <td className="px-4 py-3">

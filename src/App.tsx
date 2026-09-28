@@ -9,6 +9,7 @@ import { VerifyOtp } from './pages/VerifyOtp';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { Home } from './pages/Home';
 import { OfficesAdmin } from './pages/admin/OfficesAdmin';
+import { OfficeFundingPage } from './pages/OfficeFundingPage';
 import { CurrenciesAdmin } from './pages/admin/CurrenciesAdmin';
 import { CountriesAdmin } from './pages/admin/CountriesAdmin';
 import { FundsAdmin } from './pages/admin/FundsAdmin';
@@ -69,6 +70,7 @@ export function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
 
+              <Route path="office-funding" element={<OfficeFundingPage />} />
               <Route path="admin">
                 <Route index element={<Navigate to="/admin/offices" replace />} />
                 <Route path="offices" element={<OfficesAdmin />} />

@@ -6,6 +6,7 @@ import apiClient from '../../../api/apiClient';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { SimpleCrudScreen } from '../SimpleCrudScreen';
+import { formatMoney } from '../../../utils/money';
 
 type ApprovalStatus = 'Pending' | 'Approved' | 'Declined';
 
@@ -118,7 +119,7 @@ export function LoanApplicationDetailPage() {
             <StatusBadge status={application.status} />
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {application.clientType} · Requested {application.amount.toLocaleString()}
+            {application.clientType} · Requested {formatMoney(application.amount)}
             {application.loanId && (
               <>
                 {' '}· Linked loan{' '}

@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { PlusIcon, MinusIcon, RotateCcwIcon } from 'lucide-react';
 import apiClient from '../../../../api/apiClient';
 import { ConfirmationModal } from '../../../../components/ConfirmationModal';
+import { formatMoney } from '../../../../utils/money';
 
 interface SavingsTransaction {
   id: number;
@@ -131,9 +132,9 @@ export function TransactionsSection({ accountId, onChanged }: TransactionsSectio
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">{t.transactionType}</td>
                   <td className="px-4 py-3 text-gray-700">{t.date}</td>
-                  <td className="px-4 py-3 text-gray-700">{t.debit?.toLocaleString() ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-700">{t.credit?.toLocaleString() ?? '—'}</td>
-                  <td className="px-4 py-3 text-gray-700 font-medium">{t.balance?.toLocaleString() ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(t.debit)}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(t.credit)}</td>
+                  <td className="px-4 py-3 text-gray-700 font-medium">{formatMoney(t.balance)}</td>
                   <td className="px-4 py-3">
                     {t.reversed ? (
                       <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700">Reversed</span>

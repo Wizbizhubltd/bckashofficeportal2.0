@@ -5,6 +5,7 @@ import apiClient from '../../../api/apiClient';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { TransactionsSection } from './sections/TransactionsSection';
 import { ChargesSection } from './sections/ChargesSection';
+import { formatMoney } from '../../../utils/money';
 
 interface SavingsAccount {
   id: number;
@@ -143,7 +144,7 @@ export function SavingsAccountDetailPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Balance</p>
-          <p className="text-lg font-heading font-bold text-primary">{account.balance?.toLocaleString() ?? '—'}</p>
+          <p className="text-lg font-heading font-bold text-primary">{formatMoney(account.balance)}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Interest Rate</p>
@@ -151,7 +152,7 @@ export function SavingsAccountDetailPage() {
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Interest Earned</p>
-          <p className="text-lg font-heading font-bold text-primary">{account.interestEarned?.toLocaleString() ?? '0'}</p>
+          <p className="text-lg font-heading font-bold text-primary">{formatMoney(account.interestEarned ?? 0)}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Next Interest Posting</p>

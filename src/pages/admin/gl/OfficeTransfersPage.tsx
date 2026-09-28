@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { PlusIcon, XIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
+import { formatMoney } from '../../../utils/money';
 
 interface Office {
   id: number;
@@ -113,7 +114,7 @@ export function OfficeTransfersPage() {
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">{officeName(t.fromOfficeId)}</td>
                   <td className="px-4 py-3 text-gray-700">{officeName(t.toOfficeId)}</td>
-                  <td className="px-4 py-3 text-gray-700">{t.amount?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(t.amount, 2)}</td>
                   <td className="px-4 py-3 text-gray-700">{t.date}</td>
                   <td className="px-4 py-3 text-gray-500">{t.notes}</td>
                 </tr>

@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import apiClient from '../../../api/apiClient';
+import apiClient, { type ApiError } from '../../../api/apiClient';
+import { ClientCodeModal, type SentClientCode } from './ClientCodeModal';
+import { formatMoney } from '../../../utils/money';
+
+interface ClientCodeResponse {
+  required: boolean;
+  codeId: number | null;
+  sentTo: string | null;
+  resendAfterSeconds: number;
+}
 
 interface LoanProductOption {
   id: number;
@@ -49,6 +58,7 @@ export function LoanApplicationFormPage() {
   const [purposes, setPurposes] = useState<LoanPurposeOption[]>([]);
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
+  const [sentCode, setSentCode] = useState<SentClientCode | null>(null);
 
   useEffect(() => {
     void apiClient.get<LoanProductOption[]>('/loan-products').then((response) => setProducts(response.data));
@@ -81,31 +91,53 @@ export function LoanApplicationFormPage() {
       .finally(() => setLoading(false));
   }, [id, isEditing]);
 
+  const buildPayload = () => ({
+    clientType: form.clientType,
+    loanPurposeId: form.loanPurposeId ? Number(form.loanPurposeId) : null,
+    currencyId: null,
+    officeId: form.officeId ? Number(form.officeId) : null,
+    clientId: form.clientType === 'Client' && form.clientId ? Number(form.clientId) : null,
+    groupId: form.clientType === 'Group' && form.groupId ? Number(form.groupId) : null,
+    loanProductId: Number(form.loanProductId),
+    amount: Number(form.amount),
+    loanTerm: form.loanTerm ? Number(form.loanTerm) : null,
+    loanTermType: form.loanTermType,
+    notes: form.notes || null,
+  });
+
+  const createApplication = async (clientCode?: { codeId: number; code: string }) => {
+    const response = await apiClient.post('/loan-applications', { ...buildPayload(), clientCodeId: clientCode?.codeId ?? null, clientCode: clientCode?.code ?? null });
+    toast.success('Application created.');
+    navigate(`/admin/loan-applications/${response.data.id}`);
+  };
+
+  /** Asks the server to text/email the client a code. Null when codes are switched off. */
+  const sendClientCode = async (): Promise<SentClientCode | null> => {
+    const { data } = await apiClient.post<ClientCodeResponse>('/loan-applications/client-codes', {
+      clientId: Number(form.clientId),
+      loanProductId: Number(form.loanProductId),
+      amount: Number(form.amount),
+    });
+    return data.required && data.codeId != null ? { codeId: data.codeId, sentTo: data.sentTo, resendAfterSeconds: data.resendAfterSeconds } : null;
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      const payload = {
-        clientType: form.clientType,
-        loanPurposeId: form.loanPurposeId ? Number(form.loanPurposeId) : null,
-        currencyId: null,
-        officeId: form.officeId ? Number(form.officeId) : null,
-        clientId: form.clientType === 'Client' && form.clientId ? Number(form.clientId) : null,
-        groupId: form.clientType === 'Group' && form.groupId ? Number(form.groupId) : null,
-        loanProductId: Number(form.loanProductId),
-        amount: Number(form.amount),
-        loanTerm: form.loanTerm ? Number(form.loanTerm) : null,
-        loanTermType: form.loanTermType,
-        notes: form.notes || null,
-      };
-
       if (isEditing) {
-        await apiClient.put(`/loan-applications/${id}`, payload);
+        await apiClient.put(`/loan-applications/${id}`, buildPayload());
         toast.success('Application updated.');
         navigate(`/admin/loan-applications/${id}`);
+      } else if (form.clientType === 'Client') {
+        // When client confirmation codes are on, the client must confirm before it's submitted.
+        const sent = await sendClientCode();
+        if (sent) {
+          setSentCode(sent);
+        } else {
+          await createApplication();
+        }
       } else {
-        const response = await apiClient.post('/loan-applications', payload);
-        toast.success('Application created.');
-        navigate(`/admin/loan-applications/${response.data.id}`);
+        await createApplication();
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Save failed — check the amount and term are within the product’s range.');
@@ -113,6 +145,29 @@ export function LoanApplicationFormPage() {
       setSaving(false);
     }
   };
+
+  const confirmWithCode = async (code: string): Promise<string | null> => {
+    if (!sentCode) return null;
+    try {
+      await createApplication({ codeId: sentCode.codeId, code });
+      setSentCode(null);
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : 'Could not submit the application.';
+    }
+  };
+
+  const resendClientCode = async (): Promise<string | null> => {
+    try {
+      const sent = await sendClientCode();
+      if (sent) setSentCode(sent);
+      return null;
+    } catch (error) {
+      return (error as ApiError)?.message ?? 'Could not send a new code.';
+    }
+  };
+
+  const amountLabel = form.amount ? formatMoney(Number(form.amount)) : '';
 
   if (loading) {
     return <p className="text-gray-400 text-sm">Loading…</p>;
@@ -249,6 +304,8 @@ export function LoanApplicationFormPage() {
           </button>
         </div>
       </div>
+
+      <ClientCodeModal sent={sentCode} amountLabel={amountLabel} onConfirm={confirmWithCode} onResend={resendClientCode} onClose={() => setSentCode(null)} />
     </div>
   );
 }

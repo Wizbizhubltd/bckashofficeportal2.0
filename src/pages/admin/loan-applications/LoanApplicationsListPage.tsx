@@ -5,6 +5,7 @@ import { PlusIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
 import { Pagination } from '../../../components/Pagination';
 import { StatusBadge } from '../../../components/StatusBadge';
+import { formatMoney } from '../../../utils/money';
 
 type ApprovalStatus = 'Pending' | 'Approved' | 'Declined';
 
@@ -123,7 +124,7 @@ export function LoanApplicationsListPage() {
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-gray-700">{item.clientType}</td>
-                  <td className="px-4 py-3 text-gray-700">{item.amount.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(item.amount)}</td>
                   <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
                   <td className="px-4 py-3 text-gray-700">
                     {item.loanId ? (

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { PlusIcon, CheckIcon, XCircleIcon } from 'lucide-react';
 import apiClient from '../../../../api/apiClient';
+import { formatMoney } from '../../../../utils/money';
 
 interface SavingsCharge {
   id: number;
@@ -118,7 +119,7 @@ export function ChargesSection({ accountId, onChanged }: ChargesSectionProps) {
               items.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">{c.chargeType}{c.penalty && <span className="ml-2 text-xs text-red-600">(penalty)</span>}</td>
-                  <td className="px-4 py-3 text-gray-700">{c.amount?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(c.amount)}</td>
                   <td className="px-4 py-3 text-gray-700">{c.dueDate ?? '—'}</td>
                   <td className="px-4 py-3">
                     {c.waived ? (

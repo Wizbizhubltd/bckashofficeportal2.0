@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import apiClient from '../../../../api/apiClient';
+import { formatMoney } from '../../../../utils/money';
 
 interface ScheduleInstallment {
   id: number;
@@ -62,10 +63,10 @@ export function ScheduleSection({ loanId, refreshToken }: ScheduleSectionProps) 
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">{item.installment}</td>
                   <td className="px-4 py-3 text-gray-700">{item.dueDate}</td>
-                  <td className="px-4 py-3 text-gray-700">{item.principal?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700">{item.interest?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700">{item.totalDue?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700">{totalPaid.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(item.principal)}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(item.interest)}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(item.totalDue)}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(totalPaid)}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-1 rounded-full ${item.paid ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {item.paid ? 'Paid' : 'Outstanding'}
