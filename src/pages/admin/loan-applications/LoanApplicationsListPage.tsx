@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useRolePath } from '../../../hooks/useRolePath';
 import { PlusIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
 import { Pagination } from '../../../components/Pagination';
@@ -31,6 +32,7 @@ interface PagedResult<T> {
 const PAGE_SIZE = 20;
 
 export function LoanApplicationsListPage() {
+  const rolePath = useRolePath();
   const [items, setItems] = useState<LoanApplicationListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -78,7 +80,7 @@ export function LoanApplicationsListPage() {
           <p className="text-sm text-gray-500 mt-1">Loan application workflow (BR-LN-2).</p>
         </div>
         <Link
-          to="/admin/loan-applications/new"
+          to={rolePath('/loan-applications/new')}
           className="flex items-center gap-2 bg-accent hover:bg-[#e64a19] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           <PlusIcon size={16} />
@@ -119,7 +121,7 @@ export function LoanApplicationsListPage() {
               items.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">
-                    <Link to={`/admin/loan-applications/${item.id}`} className="text-primary hover:underline font-medium">
+                    <Link to={rolePath(`/loan-applications/${item.id}`)} className="text-primary hover:underline font-medium">
                       #{item.id}
                     </Link>
                   </td>
@@ -128,7 +130,7 @@ export function LoanApplicationsListPage() {
                   <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
                   <td className="px-4 py-3 text-gray-700">
                     {item.loanId ? (
-                      <Link to={`/admin/loans/${item.loanId}`} className="text-primary hover:underline">
+                      <Link to={rolePath(`/loans/${item.loanId}`)} className="text-primary hover:underline">
                         #{item.loanId}
                       </Link>
                     ) : '—'}

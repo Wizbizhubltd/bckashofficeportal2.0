@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useRolePath } from '../../../hooks/useRolePath';
 import apiClient, { type ApiError } from '../../../api/apiClient';
 import { ClientCodeModal, type SentClientCode } from './ClientCodeModal';
 import { formatMoney } from '../../../utils/money';
+import { useScopedOffices } from '../../../hooks/useScopedOffices';
 
 interface ClientCodeResponse {
   required: boolean;
@@ -49,6 +51,7 @@ const EMPTY_FORM: ApplicationFormState = {
 };
 
 export function LoanApplicationFormPage() {
+  const rolePath = useRolePath();
   const { id } = useParams<{ id: string }>();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
@@ -59,6 +62,15 @@ export function LoanApplicationFormPage() {
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [sentCode, setSentCode] = useState<SentClientCode | null>(null);
+
+  const offices = useScopedOffices();
+
+  // The list is already limited to the user's own office(s); someone with just one works in it.
+  useEffect(() => {
+    if (!isEditing && offices.length === 1) {
+      setForm((prev) => ({ ...prev, officeId: prev.officeId || String(offices[0].id) }));
+    }
+  }, [offices, isEditing]);
 
   useEffect(() => {
     void apiClient.get<LoanProductOption[]>('/loan-products').then((response) => setProducts(response.data));
@@ -108,7 +120,7 @@ export function LoanApplicationFormPage() {
   const createApplication = async (clientCode?: { codeId: number; code: string }) => {
     const response = await apiClient.post('/loan-applications', { ...buildPayload(), clientCodeId: clientCode?.codeId ?? null, clientCode: clientCode?.code ?? null });
     toast.success('Application created.');
-    navigate(`/admin/loan-applications/${response.data.id}`);
+    navigate(rolePath(`/loan-applications/${response.data.id}`));
   };
 
   /** Asks the server to text/email the client a code. Null when codes are switched off. */
@@ -127,7 +139,7 @@ export function LoanApplicationFormPage() {
       if (isEditing) {
         await apiClient.put(`/loan-applications/${id}`, buildPayload());
         toast.success('Application updated.');
-        navigate(`/admin/loan-applications/${id}`);
+        navigate(rolePath(`/loan-applications/${id}`));
       } else if (form.clientType === 'Client') {
         // When client confirmation codes are on, the client must confirm before it's submitted.
         const sent = await sendClientCode();
@@ -212,13 +224,19 @@ export function LoanApplicationFormPage() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Office ID</label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium text-gray-700 mb-1">Office</label>
+            <select
               value={form.officeId}
               onChange={(e) => setForm({ ...form, officeId: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-            />
+              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+            >
+              <option value="">Select an office</option>
+              {offices.map((office) => (
+                <option key={office.id} value={office.id}>
+                  {office.name ?? `Office #${office.id}`}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

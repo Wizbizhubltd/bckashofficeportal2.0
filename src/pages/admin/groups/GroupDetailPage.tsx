@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useRolePath } from '../../../hooks/useRolePath';
 import { PencilIcon, CheckCircleIcon, XCircleIcon, PauseCircleIcon, PlayCircleIcon, BanIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
 import { StatusBadge } from '../../../components/StatusBadge';
@@ -40,6 +41,7 @@ function canDecline(status: ClientStatus) { return status === 'Pending'; }
 function canClose(status: ClientStatus) { return status === 'Pending' || status === 'Active' || status === 'Inactive'; }
 
 export function GroupDetailPage() {
+  const rolePath = useRolePath();
   const { id } = useParams<{ id: string }>();
   const groupId = Number(id);
 
@@ -105,7 +107,7 @@ export function GroupDetailPage() {
 
         <div className="flex items-center gap-2">
           <Link
-            to={`/admin/groups/${group.id}/edit`}
+            to={rolePath(`/groups/${group.id}/edit`)}
             className="flex items-center gap-2 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg"
           >
             <PencilIcon size={16} />

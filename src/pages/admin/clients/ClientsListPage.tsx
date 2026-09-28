@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useRolePath } from '../../../hooks/useRolePath';
 import { PlusIcon, SearchIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
 import { Pagination } from '../../../components/Pagination';
@@ -41,6 +42,7 @@ interface Office {
 const PAGE_SIZE = 20;
 
 export function ClientsListPage() {
+  const rolePath = useRolePath();
   const [items, setItems] = useState<ClientListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -112,7 +114,7 @@ export function ClientsListPage() {
           <p className="text-sm text-gray-500 mt-1">Search and manage client records (FR-CLI-5).</p>
         </div>
         <Link
-          to="/admin/clients/new"
+          to={rolePath('/clients/new')}
           className="flex items-center gap-2 bg-accent hover:bg-[#e64a19] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           <PlusIcon size={16} />
@@ -199,7 +201,7 @@ export function ClientsListPage() {
               items.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">
-                    <Link to={`/admin/clients/${item.id}`} className="text-primary hover:underline font-medium">
+                    <Link to={rolePath(`/clients/${item.id}`)} className="text-primary hover:underline font-medium">
                       {item.accountNo}
                     </Link>
                   </td>

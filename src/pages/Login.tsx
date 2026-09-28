@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { AlertCircleIcon, ArrowRightIcon, CheckCircle2Icon, LoaderIcon, MailIcon, MonitorSmartphoneIcon } from 'lucide-react';
+import { AlertCircleIcon, ArrowRightIcon, CheckCircle2Icon, LoaderIcon, MailIcon, MonitorSmartphoneIcon, ShieldAlertIcon } from 'lucide-react';
 import { AuthLayout, authInputClass, authPrimaryButtonClass } from '../components/AuthLayout';
 import { PasswordInput } from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
+import { isWrongPortalError } from '../api/authApi';
 import { SIGNED_OUT_REASON_KEY } from '../config/storageKeys';
 
 // Read once and cleared, so the notice shows on the redirect to this page but not on later visits.
@@ -20,6 +21,7 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [unauthorised, setUnauthorised] = useState(false);
   const [loading, setLoading] = useState(false);
   const [signedOutReason] = useState(takeSignedOutReason);
   // Set by pages that send the user here on purpose, e.g. after a password reset or change.
@@ -28,12 +30,14 @@ export function Login() {
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
+    setUnauthorised(false);
     setLoading(true);
 
     try {
       const { requiresTotp } = await login(email.trim(), password);
       navigate(requiresTotp ? '/2fa' : '/verify-otp', { replace: true, state: { email: email.trim() } });
     } catch (submitError) {
+      setUnauthorised(isWrongPortalError(submitError));
       setError(submitError instanceof Error ? submitError.message : 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
@@ -59,7 +63,17 @@ export function Login() {
         </div>
       )}
 
-      {error && (
+      {unauthorised && (
+        <div role="alert" className="mb-5 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          <ShieldAlertIcon size={18} className="mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-heading font-bold">Unauthorised</p>
+            <p className="mt-0.5">Super admins can't sign in to the Office Portal. Please use the Control Portal instead.</p>
+          </div>
+        </div>
+      )}
+
+      {error && !unauthorised && (
         <div role="alert" className="mb-5 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <AlertCircleIcon size={16} className="mt-0.5 flex-shrink-0" />
           {error}

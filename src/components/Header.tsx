@@ -1,6 +1,17 @@
 import { useLocation } from 'react-router-dom';
 import { MenuIcon, SearchIcon, UserIcon } from 'lucide-react';
 
+const SECTION_TITLES: Record<string, string> = {
+  '': 'Dashboard',
+  profile: 'My Profile',
+  offices: 'Zones & Offices',
+  staff: 'Staff',
+  clients: 'Clients',
+  groups: 'Groups',
+  'loan-applications': 'Loan Applications',
+  loans: 'Loans',
+};
+
 interface HeaderProps {
   onOpenMobileSidebar: () => void;
 }
@@ -8,18 +19,10 @@ interface HeaderProps {
 export function Header({ onOpenMobileSidebar }: HeaderProps) {
   const location = useLocation();
 
+  // Paths are /<role>/<section>/…, so the section names the page.
   const getPageTitle = () => {
-    const path = location.pathname;
-    if (path === '/') return 'Dashboard';
-    if (path === '/admin/offices') return 'Offices';
-    if (path === '/admin/currencies') return 'Currencies';
-    if (path === '/admin/countries') return 'Countries';
-    if (path === '/admin/funds') return 'Funds';
-    if (path === '/admin/payment-types') return 'Payment Types';
-    if (path === '/admin/charges') return 'Charges';
-    if (path === '/admin/custom-fields') return 'Custom Fields';
-    if (path === '/admin/settings') return 'Settings';
-    return 'BCKash Portal';
+    const section = location.pathname.split('/')[2] ?? '';
+    return SECTION_TITLES[section] ?? 'BCKash Office Portal';
   };
 
   return (

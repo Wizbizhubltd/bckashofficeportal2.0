@@ -3,6 +3,7 @@ import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { ChangePasswordModal } from './ChangePasswordModal';
+import { UnauthorizedAlert } from './access/UnauthorizedAlert';
 import { useAuth } from '../context/AuthContext';
 import { loadCurrencyDisplay, useCurrencyDisplay } from '../utils/money';
 
@@ -30,6 +31,7 @@ export function Layout() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-8 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
           <div className="max-w-7xl mx-auto">
+            <UnauthorizedAlert />
             <Outlet />
           </div>
         </main>

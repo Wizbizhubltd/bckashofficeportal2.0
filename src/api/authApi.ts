@@ -42,12 +42,24 @@ export function isTotpChallenge(response: LoginChallengeResponse): boolean {
   return response.challengeType === 'totp';
 }
 
+/** An auth error carrying the API's machine-readable `reason`, when it sent one. */
+export interface AuthError extends Error {
+  reason?: string;
+}
+
+/** The API refuses a super admin here (they belong on the control portal) with this reason. */
+export function isWrongPortalError(error: unknown): boolean {
+  return (error as AuthError | undefined)?.reason === 'wrong_portal';
+}
+
 // The API returns RFC 7807 Problem Details on failure (see FRD §17) — surface its
 // `title` as the error message rather than a generic Axios one.
-function toFriendlyError(error: unknown): Error {
+function toFriendlyError(error: unknown): AuthError {
   if (axios.isAxiosError(error)) {
-    const title = (error.response?.data as { title?: string } | undefined)?.title;
-    return new Error(title || error.message);
+    const data = error.response?.data as { title?: string; reason?: string } | undefined;
+    const friendly: AuthError = new Error(data?.title || error.message);
+    friendly.reason = data?.reason;
+    return friendly;
   }
   return error instanceof Error ? error : new Error('Unexpected error');
 }
@@ -55,7 +67,8 @@ function toFriendlyError(error: unknown): Error {
 export const authApi = {
   async login(email: string, password: string): Promise<LoginChallengeResponse> {
     try {
-      const response = await authClient.post<LoginChallengeResponse>('/auth/login', { email, password });
+      // `portal` makes the API refuse anyone who belongs on the control portal (super admins).
+      const response = await authClient.post<LoginChallengeResponse>('/auth/login', { email, password, portal: 'office' });
       return response.data;
     } catch (error) {
       throw toFriendlyError(error);

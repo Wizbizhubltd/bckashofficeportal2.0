@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useRolePath } from '../../../hooks/useRolePath';
 import { PencilIcon, CheckCircleIcon, XCircleIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
 import { StatusBadge } from '../../../components/StatusBadge';
@@ -50,6 +51,7 @@ interface Collateral {
 type SectionKey = 'profile' | 'guarantors' | 'collateral';
 
 export function LoanApplicationDetailPage() {
+  const rolePath = useRolePath();
   const { id } = useParams<{ id: string }>();
   const applicationId = Number(id);
 
@@ -123,7 +125,7 @@ export function LoanApplicationDetailPage() {
             {application.loanId && (
               <>
                 {' '}· Linked loan{' '}
-                <Link to={`/admin/loans/${application.loanId}`} className="text-primary hover:underline">
+                <Link to={rolePath(`/loans/${application.loanId}`)} className="text-primary hover:underline">
                   #{application.loanId}
                 </Link>
               </>
@@ -134,7 +136,7 @@ export function LoanApplicationDetailPage() {
         {isPending && (
           <div className="flex items-center gap-2">
             <Link
-              to={`/admin/loan-applications/${application.id}/edit`}
+              to={rolePath(`/loan-applications/${application.id}/edit`)}
               className="flex items-center gap-2 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium px-3 py-2 rounded-lg"
             >
               <PencilIcon size={16} />

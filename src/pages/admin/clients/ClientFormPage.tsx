@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useRolePath } from '../../../hooks/useRolePath';
 import apiClient from '../../../api/apiClient';
 import type { ClientType } from './ClientsListPage';
 import { PHONE_MAX_DIGITS, sanitizePhoneInput, toLocalPhone } from '../../../utils/phone';
@@ -94,6 +95,7 @@ function field<K extends keyof ClientFormState>(
 }
 
 export function ClientFormPage() {
+  const rolePath = useRolePath();
   const { id } = useParams<{ id: string }>();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
@@ -104,8 +106,14 @@ export function ClientFormPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void apiClient.get<Office[]>('/offices').then((response) => setOffices(response.data));
-  }, []);
+    void apiClient.get<Office[]>('/offices').then((response) => {
+      setOffices(response.data);
+      // The list is already limited to the user's own office(s); someone with just one works in it.
+      if (!isEditing && response.data.length === 1) {
+        setForm((prev) => ({ ...prev, officeId: prev.officeId || String(response.data[0].id) }));
+      }
+    });
+  }, [isEditing]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -191,11 +199,11 @@ export function ClientFormPage() {
       if (isEditing) {
         await apiClient.put(`/clients/${id}`, payload);
         toast.success('Client updated.');
-        navigate(`/admin/clients/${id}`);
+        navigate(rolePath(`/clients/${id}`));
       } else {
         const response = await apiClient.post('/clients', payload);
         toast.success('Client created.');
-        navigate(`/admin/clients/${response.data.id}`);
+        navigate(rolePath(`/clients/${response.data.id}`));
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Save failed.');
