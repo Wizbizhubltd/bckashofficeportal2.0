@@ -3,6 +3,8 @@ import toast from 'react-hot-toast';
 import { PlusIcon, CheckIcon, RotateCcwIcon, TrashIcon, XIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
+import { formatMoney } from '../../../utils/money';
+import { sanitizeDecimal } from '../../../utils/numeric';
 
 interface GlAccountOption {
   id: number;
@@ -163,8 +165,8 @@ export function JournalEntriesPage() {
                     <td className="px-4 py-3 text-gray-700">{e.date}</td>
                     <td className="px-4 py-3 text-gray-700">{e.transactionType}</td>
                     <td className="px-4 py-3 text-gray-700">{e.glAccountName}</td>
-                    <td className="px-4 py-3 text-gray-700">{e.debit?.toLocaleString() ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-700">{e.credit?.toLocaleString() ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatMoney(e.debit, 2)}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatMoney(e.credit, 2)}</td>
                     <td className="px-4 py-3">
                       {e.reversed ? (
                         <span className="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700">Reversed</span>
@@ -242,9 +244,10 @@ export function JournalEntriesPage() {
                   </select>
                   <input
                     type="text"
+                    inputMode="decimal"
                     placeholder="Amount"
                     value={line.amount}
-                    onChange={(e) => setLines(lines.map((l, i) => (i === index ? { ...l, amount: e.target.value } : l)))}
+                    onChange={(e) => setLines(lines.map((l, i) => (i === index ? { ...l, amount: sanitizeDecimal(e.target.value) } : l)))}
                     className="w-32 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                   />
                   <button
@@ -267,8 +270,8 @@ export function JournalEntriesPage() {
             </button>
 
             <div className="mt-4 flex items-center justify-between text-sm bg-gray-50 rounded-lg px-4 py-3">
-              <span className="text-gray-600">Debit total: <strong>{totalDebit.toLocaleString()}</strong></span>
-              <span className="text-gray-600">Credit total: <strong>{totalCredit.toLocaleString()}</strong></span>
+              <span className="text-gray-600">Debit total: <strong>{formatMoney(totalDebit, 2)}</strong></span>
+              <span className="text-gray-600">Credit total: <strong>{formatMoney(totalCredit, 2)}</strong></span>
               <span className={balanced ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>{balanced ? 'Balanced' : 'Not balanced'}</span>
             </div>
 

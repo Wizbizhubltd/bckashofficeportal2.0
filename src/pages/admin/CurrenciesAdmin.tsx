@@ -28,7 +28,7 @@ export function CurrenciesAdmin() {
         { key: 'name', label: 'Name', type: 'text' },
         { key: 'code', label: 'Code (e.g. NGN)', type: 'text' },
         { key: 'symbol', label: 'Symbol', type: 'text' },
-        { key: 'decimals', label: 'Decimal Places', type: 'text' },
+        { key: 'decimals', label: 'Decimal Places', type: 'number' },
         { key: 'xrate', label: 'Exchange Rate', type: 'number' },
         { key: 'internationalCode', label: 'International Code', type: 'text' },
         { key: 'active', label: 'Active', type: 'checkbox' },

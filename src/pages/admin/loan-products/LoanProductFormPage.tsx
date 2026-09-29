@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import apiClient from '../../../api/apiClient';
+import { sanitizeDecimal, sanitizeWholeNumber } from '../../../utils/numeric';
 
 interface LoanProductFormState {
   name: string;
@@ -73,14 +74,23 @@ const EMPTY_FORM: LoanProductFormState = {
   glAccountIncomeFeeId: '', glAccountIncomePenaltyId: '', glAccountIncomeRecoveryId: '', glAccountLoansWrittenOffId: '',
 };
 
-function textField<K extends keyof LoanProductFormState>(form: LoanProductFormState, setForm: (f: LoanProductFormState) => void, key: K, label: string) {
+/** `numeric`: 'whole' keeps only digits, 'decimal' allows one decimal point — text never gets into number fields. */
+function textField<K extends keyof LoanProductFormState>(
+  form: LoanProductFormState, setForm: (f: LoanProductFormState) => void, key: K, label: string, numeric?: 'whole' | 'decimal',
+) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input
         type="text"
+        inputMode={numeric === 'whole' ? 'numeric' : numeric === 'decimal' ? 'decimal' : undefined}
         value={form[key] as string}
-        onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+        onChange={(e) =>
+          setForm({
+            ...form,
+            [key]: numeric === 'whole' ? sanitizeWholeNumber(e.target.value) : numeric === 'decimal' ? sanitizeDecimal(e.target.value, 4) : e.target.value,
+          })
+        }
         className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
       />
     </div>
@@ -289,9 +299,9 @@ export function LoanProductFormPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {textField(form, setForm, 'name', 'Name')}
             {textField(form, setForm, 'shortName', 'Short Name')}
-            {textField(form, setForm, 'fundId', 'Fund ID')}
-            {textField(form, setForm, 'currencyId', 'Currency ID')}
-            {textField(form, setForm, 'decimals', 'Decimals')}
+            {textField(form, setForm, 'fundId', 'Fund ID', 'whole')}
+            {textField(form, setForm, 'currencyId', 'Currency ID', 'whole')}
+            {textField(form, setForm, 'decimals', 'Decimals', 'whole')}
           </div>
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
@@ -307,17 +317,17 @@ export function LoanProductFormPage() {
         <section>
           <h2 className="text-sm font-heading font-bold text-gray-500 uppercase tracking-wide mb-4">Principal, Term & Rate (FR-LN-2: min ≤ default ≤ max)</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {textField(form, setForm, 'minimumPrincipal', 'Minimum Principal')}
-            {textField(form, setForm, 'defaultPrincipal', 'Default Principal')}
-            {textField(form, setForm, 'maximumPrincipal', 'Maximum Principal')}
-            {textField(form, setForm, 'minimumLoanTerm', 'Minimum Term')}
-            {textField(form, setForm, 'defaultLoanTerm', 'Default Term')}
-            {textField(form, setForm, 'maximumLoanTerm', 'Maximum Term')}
-            {textField(form, setForm, 'minimumInterestRate', 'Minimum Interest Rate')}
-            {textField(form, setForm, 'defaultInterestRate', 'Default Interest Rate')}
-            {textField(form, setForm, 'maximumInterestRate', 'Maximum Interest Rate')}
+            {textField(form, setForm, 'minimumPrincipal', 'Minimum Principal', 'decimal')}
+            {textField(form, setForm, 'defaultPrincipal', 'Default Principal', 'decimal')}
+            {textField(form, setForm, 'maximumPrincipal', 'Maximum Principal', 'decimal')}
+            {textField(form, setForm, 'minimumLoanTerm', 'Minimum Term', 'whole')}
+            {textField(form, setForm, 'defaultLoanTerm', 'Default Term', 'whole')}
+            {textField(form, setForm, 'maximumLoanTerm', 'Maximum Term', 'whole')}
+            {textField(form, setForm, 'minimumInterestRate', 'Minimum Interest Rate', 'decimal')}
+            {textField(form, setForm, 'defaultInterestRate', 'Default Interest Rate', 'decimal')}
+            {textField(form, setForm, 'maximumInterestRate', 'Maximum Interest Rate', 'decimal')}
             {selectField(form, setForm, 'interestRateType', 'Interest Rate Period', ['Day', 'Week', 'Month', 'Year'])}
-            {textField(form, setForm, 'repaymentFrequency', 'Repayment Frequency')}
+            {textField(form, setForm, 'repaymentFrequency', 'Repayment Frequency', 'whole')}
             {selectField(form, setForm, 'repaymentFrequencyType', 'Repayment Frequency Unit', ['Days', 'Weeks', 'Months', 'Years'])}
           </div>
         </section>
@@ -338,11 +348,11 @@ export function LoanProductFormPage() {
         <section>
           <h2 className="text-sm font-heading font-bold text-gray-500 uppercase tracking-wide mb-4">Grace Periods & Behavior</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {textField(form, setForm, 'graceOnInterestCharged', 'Grace on Interest Charged')}
-            {textField(form, setForm, 'graceOnPrincipal', 'Grace on Principal')}
-            {textField(form, setForm, 'graceOnInterestPayment', 'Grace on Interest Payment')}
-            {textField(form, setForm, 'npaDays', 'NPA Days')}
-            {textField(form, setForm, 'arrearsGraceDays', 'Arrears Grace Days')}
+            {textField(form, setForm, 'graceOnInterestCharged', 'Grace on Interest Charged', 'whole')}
+            {textField(form, setForm, 'graceOnPrincipal', 'Grace on Principal', 'whole')}
+            {textField(form, setForm, 'graceOnInterestPayment', 'Grace on Interest Payment', 'whole')}
+            {textField(form, setForm, 'npaDays', 'NPA Days', 'whole')}
+            {textField(form, setForm, 'arrearsGraceDays', 'Arrears Grace Days', 'whole')}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
             {checkboxField(form, setForm, 'allowCustomGrace', 'Allow Custom Grace')}

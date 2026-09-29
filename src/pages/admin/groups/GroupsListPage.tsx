@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useRolePath } from '../../../hooks/useRolePath';
+import { useAuth } from '../../../context/AuthContext';
+import { CLIENT_CREATOR_ROLES, type OfficeRole } from '../../../config/roles';
 import { PlusIcon, SearchIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
 import { Pagination } from '../../../components/Pagination';
@@ -32,6 +35,8 @@ interface Office {
 const PAGE_SIZE = 20;
 
 export function GroupsListPage() {
+  const rolePath = useRolePath();
+  const { userType } = useAuth();
   const [items, setItems] = useState<GroupListItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -94,13 +99,15 @@ export function GroupsListPage() {
           <h1 className="text-xl font-heading font-bold text-primary">Groups</h1>
           <p className="text-sm text-gray-500 mt-1">Manage lending groups (BR-GRP-1).</p>
         </div>
-        <Link
-          to="/admin/groups/new"
-          className="flex items-center gap-2 bg-accent hover:bg-[#e64a19] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          <PlusIcon size={16} />
-          Add Group
-        </Link>
+        {CLIENT_CREATOR_ROLES.includes(userType as OfficeRole) && (
+          <Link
+            to={rolePath('/groups/onboard')}
+            className="flex items-center gap-2 bg-accent hover:bg-[#e64a19] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            <PlusIcon size={16} />
+            Onboard group
+          </Link>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 p-4 mb-4 grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -156,7 +163,7 @@ export function GroupsListPage() {
               items.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">
-                    <Link to={`/admin/groups/${item.id}`} className="text-primary hover:underline font-medium">
+                    <Link to={rolePath(`/groups/${item.id}`)} className="text-primary hover:underline font-medium">
                       {item.accountNo || `#${item.id}`}
                     </Link>
                   </td>

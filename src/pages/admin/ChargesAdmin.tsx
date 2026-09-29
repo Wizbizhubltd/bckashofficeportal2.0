@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import { PlusIcon, PencilIcon, TrashIcon, XIcon, AlertTriangleIcon } from 'lucide-react';
 import apiClient from '../../api/apiClient';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
+import { sanitizeDecimal, toNumberOrNull } from '../../utils/numeric';
 
 const PRODUCTS = ['Loan', 'Savings', 'Shares', 'Client'] as const;
 const CHARGE_TYPES = [
@@ -57,6 +58,12 @@ export function ChargesAdmin() {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<ChargeForm | null>(null);
+  // The amount as typed, so a decimal point can be entered before the digits after it.
+  const [amountText, setAmountText] = useState('');
+  const openForm = (next: ChargeForm) => {
+    setForm(next);
+    setAmountText(next.amount == null ? '' : String(next.amount));
+  };
   const [deleteTarget, setDeleteTarget] = useState<Charge | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -125,7 +132,7 @@ export function ChargesAdmin() {
           </p>
         </div>
         <button
-          onClick={() => setForm(EMPTY_FORM)}
+          onClick={() => openForm(EMPTY_FORM)}
           className="flex items-center gap-2 bg-accent hover:bg-[#e64a19] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           <PlusIcon size={16} />
@@ -160,7 +167,7 @@ export function ChargesAdmin() {
                   <td className="px-4 py-3 text-gray-700">{c.amount ?? '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 justify-end">
-                      <button onClick={() => setForm({ ...c })} className="text-gray-400 hover:text-primary" aria-label="Edit">
+                      <button onClick={() => openForm({ ...c })} className="text-gray-400 hover:text-primary" aria-label="Edit">
                         <PencilIcon size={16} />
                       </button>
                       <button onClick={() => setDeleteTarget(c)} className="text-gray-400 hover:text-red-600" aria-label="Deactivate">
@@ -209,9 +216,14 @@ export function ChargesAdmin() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
                 <input
-                  type="number"
-                  value={form.amount ?? ''}
-                  onChange={(e) => setForm({ ...form, amount: e.target.value ? Number(e.target.value) : null })}
+                  type="text"
+                  inputMode="decimal"
+                  value={amountText}
+                  onChange={(e) => {
+                    const text = sanitizeDecimal(e.target.value);
+                    setAmountText(text);
+                    setForm({ ...form, amount: toNumberOrNull(text) });
+                  }}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>

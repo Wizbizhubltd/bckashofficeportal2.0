@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import apiClient from '../../../api/apiClient';
+import { sanitizeDecimal, sanitizeWholeNumber } from '../../../utils/numeric';
 
 interface SavingsProductFormState {
   name: string;
@@ -47,14 +48,23 @@ interface GlAccountOption {
   glCode: string | null;
 }
 
-function textField<K extends keyof SavingsProductFormState>(form: SavingsProductFormState, setForm: (f: SavingsProductFormState) => void, key: K, label: string) {
+/** `numeric`: 'whole' keeps only digits, 'decimal' allows one decimal point — text never gets into number fields. */
+function textField<K extends keyof SavingsProductFormState>(
+  form: SavingsProductFormState, setForm: (f: SavingsProductFormState) => void, key: K, label: string, numeric?: 'whole' | 'decimal',
+) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input
         type="text"
+        inputMode={numeric === 'whole' ? 'numeric' : numeric === 'decimal' ? 'decimal' : undefined}
         value={form[key] as string}
-        onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+        onChange={(e) =>
+          setForm({
+            ...form,
+            [key]: numeric === 'whole' ? sanitizeWholeNumber(e.target.value) : numeric === 'decimal' ? sanitizeDecimal(e.target.value, 4) : e.target.value,
+          })
+        }
         className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
       />
     </div>
@@ -219,17 +229,17 @@ export function SavingsProductFormPage() {
             {textField(form, setForm, 'name', 'Name')}
             {textField(form, setForm, 'shortName', 'Short Name')}
             {textField(form, setForm, 'description', 'Description')}
-            {textField(form, setForm, 'currencyId', 'Currency ID')}
-            {textField(form, setForm, 'decimals', 'Decimals')}
+            {textField(form, setForm, 'currencyId', 'Currency ID', 'whole')}
+            {textField(form, setForm, 'decimals', 'Decimals', 'whole')}
           </div>
         </section>
 
         <section>
           <h2 className="text-sm font-heading font-bold text-gray-500 uppercase tracking-wide mb-4">Interest & Balance</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {textField(form, setForm, 'interestRate', 'Interest Rate (%)')}
-            {textField(form, setForm, 'minimumBalance', 'Minimum Balance')}
-            {textField(form, setForm, 'openingBalance', 'Default Opening Balance')}
+            {textField(form, setForm, 'interestRate', 'Interest Rate (%)', 'decimal')}
+            {textField(form, setForm, 'minimumBalance', 'Minimum Balance', 'decimal')}
+            {textField(form, setForm, 'openingBalance', 'Default Opening Balance', 'decimal')}
             {selectField(form, setForm, 'interestCompoundingPeriod', 'Compounding Period', ['Daily', 'Monthly', 'Quarterly', 'Biannual', 'Annually'])}
             {selectField(form, setForm, 'interestPostingPeriod', 'Posting Period', ['Monthly', 'Quarterly', 'Biannual', 'Annually'])}
             {selectField(form, setForm, 'interestCalculationType', 'Calculation Type', ['Daily', 'Average'])}

@@ -6,6 +6,8 @@ import { ACCESS_TOKEN_KEY, PENDING_CHALLENGE_KEY, REFRESH_TOKEN_KEY, USER_DATA_K
 interface AccessTokenClaims {
   sub: string;
   office_id?: string;
+  /** The user's user_type slug (director, controller, manager, marketer — or super_admin, who don't belong here). */
+  user_type?: string;
   /** "true" while the user must replace a temporary password — the API rejects everything else until then. */
   pwd_change_required?: string;
 }
@@ -13,6 +15,8 @@ interface AccessTokenClaims {
 interface AuthContextType {
   userId: string | null;
   user: UserData | null;
+  /** From the access token, so it also covers the authenticator-app sign-in, which returns no user data. */
+  userType: string | null;
   isAuthenticated: boolean;
   pendingChallengeToken: string | null;
   login: (email: string, password: string) => Promise<{ requiresTotp: boolean }>;
@@ -109,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         userId: accessToken ? userIdFromToken(accessToken) : null,
         user,
+        userType: (accessToken ? decodeJwt<AccessTokenClaims>(accessToken)?.user_type : null) ?? user?.user_type ?? null,
         isAuthenticated: !!accessToken,
         pendingChallengeToken,
         login,

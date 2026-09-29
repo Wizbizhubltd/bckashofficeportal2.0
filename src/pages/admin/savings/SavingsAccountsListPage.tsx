@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { PlusIcon, XIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
+import { formatMoney } from '../../../utils/money';
+import { sanitizeWholeNumber } from '../../../utils/numeric';
 
 interface SavingsProduct {
   id: number;
@@ -101,7 +103,7 @@ export function SavingsAccountsListPage() {
                     <Link to={`/admin/savings/${a.id}`} className="text-primary hover:underline font-medium">{a.accountNumber ?? `#${a.id}`}</Link>
                   </td>
                   <td className="px-4 py-3 text-gray-700">{a.clientId}</td>
-                  <td className="px-4 py-3 text-gray-700">{a.balance?.toLocaleString() ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(a.balance)}</td>
                   <td className="px-4 py-3">
                     <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-600">{a.status}</span>
                   </td>
@@ -126,8 +128,9 @@ export function SavingsAccountsListPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   value={clientId}
-                  onChange={(e) => setClientId(e.target.value)}
+                  onChange={(e) => setClientId(sanitizeWholeNumber(e.target.value))}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>

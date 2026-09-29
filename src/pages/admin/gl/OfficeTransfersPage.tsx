@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { PlusIcon, XIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
+import { formatMoney } from '../../../utils/money';
+import { sanitizeDecimal } from '../../../utils/numeric';
 
 interface Office {
   id: number;
@@ -113,7 +115,7 @@ export function OfficeTransfersPage() {
                 <tr key={t.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">{officeName(t.fromOfficeId)}</td>
                   <td className="px-4 py-3 text-gray-700">{officeName(t.toOfficeId)}</td>
-                  <td className="px-4 py-3 text-gray-700">{t.amount?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(t.amount, 2)}</td>
                   <td className="px-4 py-3 text-gray-700">{t.date}</td>
                   <td className="px-4 py-3 text-gray-500">{t.notes}</td>
                 </tr>
@@ -162,7 +164,7 @@ export function OfficeTransfersPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input type="text" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                <input type="text" inputMode="decimal" value={amount} onChange={(e) => setAmount(sanitizeDecimal(e.target.value))} className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>

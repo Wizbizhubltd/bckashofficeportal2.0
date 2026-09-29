@@ -4,6 +4,7 @@ import { PlusIcon, PencilIcon, TrashIcon, XIcon, AlertTriangleIcon } from 'lucid
 import apiClient from '../../api/apiClient';
 import { ConfirmationModal } from '../../components/ConfirmationModal';
 import { PHONE_MAX_DIGITS, sanitizePhoneInput, toLocalPhone } from '../../utils/phone';
+import { sanitizeDecimal, toNumberOrNull } from '../../utils/numeric';
 
 export interface CrudField<T> {
   // Deliberately excludes 'id' — fields describe the editable form, which never includes
@@ -27,6 +28,8 @@ interface SimpleCrudScreenProps<T extends { id: number }> {
   fields: CrudField<T>[];
   emptyItem: Omit<T, 'id'>;
   canDelete?: boolean;
+  /** Hides adding, editing and deleting — for viewers who may only look (e.g. a client documented by someone else). */
+  readOnly?: boolean;
 }
 
 /**
@@ -43,6 +46,7 @@ export function SimpleCrudScreen<T extends { id: number }>({
   fields,
   emptyItem,
   canDelete = true,
+  readOnly = false,
 }: SimpleCrudScreenProps<T>) {
   const [items, setItems] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +73,15 @@ export function SimpleCrudScreen<T extends { id: number }>({
 
   const isEditing = modalItem !== null && 'id' in modalItem;
 
+  // Number fields are edited as sanitized text; they go to the API as numbers (or null when blank).
+  const withNumbers = (item: T | Omit<T, 'id'>) => {
+    const body: Record<string, unknown> = { ...item };
+    for (const field of fields) {
+      if (field.type === 'number') body[field.key as string] = toNumberOrNull(body[field.key as string] as string | number | null);
+    }
+    return body;
+  };
+
   const handleSave = async () => {
     if (!modalItem) {
       return;
@@ -77,10 +90,10 @@ export function SimpleCrudScreen<T extends { id: number }>({
     setSaving(true);
     try {
       if (isEditing) {
-        await apiClient.put(`${endpoint}/${(modalItem as T).id}`, modalItem);
+        await apiClient.put(`${endpoint}/${(modalItem as T).id}`, withNumbers(modalItem));
         toast.success(`${title.replace(/s$/, '')} updated.`);
       } else {
-        await apiClient.post(endpoint, modalItem);
+        await apiClient.post(endpoint, withNumbers(modalItem));
         toast.success(`${title.replace(/s$/, '')} created.`);
       }
       setModalItem(null);
@@ -114,13 +127,13 @@ export function SimpleCrudScreen<T extends { id: number }>({
           <h1 className="text-xl font-heading font-bold text-primary">{title}</h1>
           {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
         </div>
-        <button
+        {!readOnly && <button
           onClick={() => setModalItem(emptyItem)}
           className="flex items-center gap-2 bg-accent hover:bg-[#e64a19] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
         >
           <PlusIcon size={16} />
           Add
-        </button>
+        </button>}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
@@ -157,7 +170,7 @@ export function SimpleCrudScreen<T extends { id: number }>({
                     </td>
                   ))}
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 justify-end">
+                    {!readOnly && <div className="flex items-center gap-2 justify-end">
                       <button onClick={() => setModalItem(item)} className="text-gray-400 hover:text-primary" aria-label="Edit">
                         <PencilIcon size={16} />
                       </button>
@@ -166,7 +179,7 @@ export function SimpleCrudScreen<T extends { id: number }>({
                           <TrashIcon size={16} />
                         </button>
                       )}
-                    </div>
+                    </div>}
                   </td>
                 </tr>
               ))
@@ -222,12 +235,13 @@ export function SimpleCrudScreen<T extends { id: number }>({
                         />
                       ) : (
                         <input
-                          type={field.type === 'number' ? 'number' : 'text'}
+                          type="text"
+                          inputMode={field.type === 'number' ? 'decimal' : undefined}
                           value={String(modalItem[field.key] ?? '')}
                           onChange={(e) =>
                             setModalItem({
                               ...modalItem,
-                              [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value,
+                              [field.key]: field.type === 'number' ? sanitizeDecimal(e.target.value, 4) : e.target.value,
                             })
                           }
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"

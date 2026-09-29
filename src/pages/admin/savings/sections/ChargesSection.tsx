@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { PlusIcon, CheckIcon, XCircleIcon } from 'lucide-react';
 import apiClient from '../../../../api/apiClient';
+import { formatMoney } from '../../../../utils/money';
+import { sanitizeDecimal } from '../../../../utils/numeric';
 
 interface SavingsCharge {
   id: number;
@@ -118,7 +120,7 @@ export function ChargesSection({ accountId, onChanged }: ChargesSectionProps) {
               items.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">{c.chargeType}{c.penalty && <span className="ml-2 text-xs text-red-600">(penalty)</span>}</td>
-                  <td className="px-4 py-3 text-gray-700">{c.amount?.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(c.amount)}</td>
                   <td className="px-4 py-3 text-gray-700">{c.dueDate ?? '—'}</td>
                   <td className="px-4 py-3">
                     {c.waived ? (
@@ -169,8 +171,9 @@ export function ChargesSection({ accountId, onChanged }: ChargesSectionProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
                 <input
                   type="text"
+                  inputMode="decimal"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => setAmount(sanitizeDecimal(e.target.value))}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>

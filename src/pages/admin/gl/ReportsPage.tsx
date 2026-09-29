@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import apiClient from '../../../api/apiClient';
+import { formatMoney } from '../../../utils/money';
+import { sanitizeWholeNumber } from '../../../utils/numeric';
 
 interface TrialBalanceRow {
   glAccountId: number;
@@ -106,7 +108,7 @@ export function ReportsPage() {
       <div className="flex items-end gap-3 mb-4">
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Office ID</label>
-          <input type="text" value={officeId} onChange={(e) => setOfficeId(e.target.value)} className="w-32 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+          <input type="text" inputMode="numeric" value={officeId} onChange={(e) => setOfficeId(sanitizeWholeNumber(e.target.value))} className="w-32 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">From</label>
@@ -145,14 +147,14 @@ export function ReportsPage() {
                       <td className="px-4 py-3 text-gray-500">{row.glCode}</td>
                       <td className="px-4 py-3 text-gray-700">{row.name}</td>
                       <td className="px-4 py-3 text-gray-700">{row.accountType}</td>
-                      <td className="px-4 py-3 text-gray-700">{row.totalDebit.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-gray-700">{row.totalCredit.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-gray-700">{formatMoney(row.totalDebit, 2)}</td>
+                      <td className="px-4 py-3 text-gray-700">{formatMoney(row.totalCredit, 2)}</td>
                     </tr>
                   ))}
                   <tr className="bg-gray-50 font-medium">
                     <td className="px-4 py-3" colSpan={3}>Total</td>
-                    <td className="px-4 py-3">{trialBalance.reduce((s, r) => s + r.totalDebit, 0).toLocaleString()}</td>
-                    <td className="px-4 py-3">{trialBalance.reduce((s, r) => s + r.totalCredit, 0).toLocaleString()}</td>
+                    <td className="px-4 py-3">{formatMoney(trialBalance.reduce((s, r) => s + r.totalDebit, 0), 2)}</td>
+                    <td className="px-4 py-3">{formatMoney(trialBalance.reduce((s, r) => s + r.totalCredit, 0), 2)}</td>
                   </tr>
                 </>
               )}
@@ -172,9 +174,9 @@ export function ReportsPage() {
               {balanceSheet.map((row) => (
                 <tr key={row.accountType} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-gray-700">{row.accountType}</td>
-                  <td className="px-4 py-3 text-gray-700">{row.totalDebit.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700">{row.totalCredit.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-gray-700">{row.net.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(row.totalDebit, 2)}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(row.totalCredit, 2)}</td>
+                  <td className="px-4 py-3 text-gray-700">{formatMoney(row.net, 2)}</td>
                 </tr>
               ))}
             </tbody>
@@ -194,14 +196,14 @@ export function ReportsPage() {
                 {profitAndLoss?.sections.map((row) => (
                   <tr key={row.accountType} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-gray-700">{row.accountType}</td>
-                    <td className="px-4 py-3 text-gray-700">{row.totalDebit.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-gray-700">{row.totalCredit.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-gray-700">{row.net.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatMoney(row.totalDebit, 2)}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatMoney(row.totalCredit, 2)}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatMoney(row.net, 2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="px-4 py-3 bg-gray-50 font-medium text-sm">Net Profit: {profitAndLoss?.netProfit.toLocaleString() ?? 0}</div>
+            <div className="px-4 py-3 bg-gray-50 font-medium text-sm">Net Profit: {formatMoney(profitAndLoss?.netProfit ?? 0, 2)}</div>
           </div>
         ) : (
           <table className="w-full text-sm">
@@ -218,7 +220,7 @@ export function ReportsPage() {
                 cashFlow.map((row) => (
                   <tr key={row.period} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-gray-700">{row.period}</td>
-                    <td className="px-4 py-3 text-gray-700">{row.netMovement.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatMoney(row.netMovement, 2)}</td>
                   </tr>
                 ))
               )}

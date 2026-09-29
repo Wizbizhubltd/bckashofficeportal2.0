@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useRolePath } from '../../../hooks/useRolePath';
 import apiClient from '../../../api/apiClient';
 import { PHONE_MAX_DIGITS, sanitizePhoneInput, toLocalPhone } from '../../../utils/phone';
+import { sanitizeWholeNumber } from '../../../utils/numeric';
 
 interface Office {
   id: number;
@@ -46,18 +48,20 @@ function field<K extends keyof GroupFormState>(
   setForm: (form: GroupFormState) => void,
   key: K,
   label: string,
-  type: 'text' | 'date' | 'email' | 'tel' = 'text',
+  type: 'text' | 'date' | 'email' | 'tel' | 'digits' = 'text',
 ) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input
-        type={type}
-        inputMode={type === 'tel' ? 'numeric' : undefined}
+        type={type === 'digits' ? 'text' : type}
+        inputMode={type === 'tel' || type === 'digits' ? 'numeric' : undefined}
         maxLength={type === 'tel' ? PHONE_MAX_DIGITS : undefined}
         placeholder={type === 'tel' ? '08031234567' : undefined}
         value={form[key]}
-        onChange={(e) => setForm({ ...form, [key]: type === 'tel' ? sanitizePhoneInput(e.target.value) : e.target.value })}
+        onChange={(e) =>
+          setForm({ ...form, [key]: type === 'tel' ? sanitizePhoneInput(e.target.value) : type === 'digits' ? sanitizeWholeNumber(e.target.value) : e.target.value })
+        }
         className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
       />
     </div>
@@ -65,6 +69,7 @@ function field<K extends keyof GroupFormState>(
 }
 
 export function GroupFormPage() {
+  const rolePath = useRolePath();
   const { id } = useParams<{ id: string }>();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
@@ -75,8 +80,14 @@ export function GroupFormPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void apiClient.get<Office[]>('/offices').then((response) => setOffices(response.data));
-  }, []);
+    void apiClient.get<Office[]>('/offices').then((response) => {
+      setOffices(response.data);
+      // The list is already limited to the user's own office(s); someone with just one works in it.
+      if (!isEditing && response.data.length === 1) {
+        setForm((prev) => ({ ...prev, officeId: prev.officeId || String(response.data[0].id) }));
+      }
+    });
+  }, [isEditing]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -130,11 +141,11 @@ export function GroupFormPage() {
       if (isEditing) {
         await apiClient.put(`/groups/${id}`, payload);
         toast.success('Group updated.');
-        navigate(`/admin/groups/${id}`);
+        navigate(rolePath(`/groups/${id}`));
       } else {
         const response = await apiClient.post('/groups', payload);
         toast.success('Group created.');
-        navigate(`/admin/groups/${response.data.id}`);
+        navigate(rolePath(`/groups/${response.data.id}`));
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Save failed.');
@@ -169,7 +180,7 @@ export function GroupFormPage() {
                 ))}
               </select>
             </div>
-            {field(form, setForm, 'staffId', 'Staff ID')}
+            {field(form, setForm, 'staffId', 'Staff ID', 'digits')}
             {field(form, setForm, 'joinedDate', 'Joined Date', 'date')}
           </div>
         </section>

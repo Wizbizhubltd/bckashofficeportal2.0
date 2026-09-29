@@ -18,6 +18,11 @@ type ReusableInputFieldProps = {
   as?: 'input' | 'textarea' | 'select';
   rows?: number;
   options?: Option[];
+  maxLength?: number;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
+  max?: string;
+  required?: boolean;
+  disabled?: boolean;
 };
 
 export function ReusableInputField({
@@ -33,6 +38,11 @@ export function ReusableInputField({
   as = 'input',
   rows = 3,
   options = [],
+  maxLength,
+  inputMode,
+  max,
+  required,
+  disabled,
 }: ReusableInputFieldProps) {
   const hasError = Boolean(touched && error);
   const baseClassName = `w-full px-3 py-2 border rounded-lg text-sm font-body focus:outline-none focus:ring-2 ${hasError ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-primary/20'}`;
@@ -41,6 +51,7 @@ export function ReusableInputField({
     <div className="space-y-1">
       <label htmlFor={name} className="block text-xs font-body font-medium text-gray-600">
         {label}
+        {required && <span className="text-red-500"> *</span>}
       </label>
 
       {as === 'textarea' && (
@@ -63,7 +74,8 @@ export function ReusableInputField({
           value={value}
           onChange={onChange}
           onBlur={onBlur}
-          className={`${baseClassName} bg-white`}
+          disabled={disabled}
+          className={`${baseClassName} bg-white disabled:bg-gray-50`}
         >
           <option value="">Select...</option>
           {options.map((option) => (
@@ -83,7 +95,11 @@ export function ReusableInputField({
           onChange={onChange}
           onBlur={onBlur}
           placeholder={placeholder}
-          className={baseClassName}
+          maxLength={maxLength}
+          inputMode={inputMode}
+          max={max}
+          disabled={disabled}
+          className={`${baseClassName} disabled:bg-gray-50`}
         />
       )}
 

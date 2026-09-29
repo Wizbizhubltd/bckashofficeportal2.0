@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { XIcon } from 'lucide-react';
+import { getCurrencyDisplay } from '../utils/money';
 interface ConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -138,17 +139,18 @@ export function ConfirmationModal({
                   </label>
             }
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-body">
-                    ₦
+                  <span className={`absolute ${getCurrencyDisplay().position === 'left' ? 'left-3' : 'right-3'} top-1/2 -translate-y-1/2 text-gray-400 text-sm font-body`}>
+                    {getCurrencyDisplay().symbol}
                   </span>
                   <input
                 type="text"
+                inputMode="numeric"
                 value={inputValue}
                 onChange={(e) =>
                 setInputValue(e.target.value.replace(/[^0-9,]/g, ''))
                 }
                 placeholder={inputPlaceholder || '0'}
-                className="w-full pl-8 pr-4 py-2 border border-gray-200 rounded-lg text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                className={`w-full ${getCurrencyDisplay().position === 'left' ? 'pl-8 pr-4' : 'pl-4 pr-10'} py-2 border border-gray-200 rounded-lg text-sm font-body focus:outline-none focus:ring-2 focus:ring-primary/20`} />
               
                 </div>
               </div>
