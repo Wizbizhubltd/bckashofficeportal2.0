@@ -6,7 +6,8 @@ import { MeProvider } from './context/MeContext';
 import { Layout } from './components/Layout';
 import { HomeRedirect, RoleGate } from './components/access/RoleGate';
 import { ModuleGate } from './components/access/ModuleGate';
-import { OFFICE_ROLES, type OfficeRole } from './config/roles';
+import { RoleOnlyGate } from './components/access/RoleOnlyGate';
+import { CLIENT_CREATOR_ROLES, OFFICE_ROLES, type OfficeRole } from './config/roles';
 import { Login } from './pages/Login';
 import { TwoFactor } from './pages/TwoFactor';
 import { VerifyOtp } from './pages/VerifyOtp';
@@ -31,6 +32,11 @@ import { LoanApplicationsListPage } from './pages/admin/loan-applications/LoanAp
 import { LoanApplicationFormPage } from './pages/admin/loan-applications/LoanApplicationFormPage';
 import { LoanApplicationDetailPage } from './pages/admin/loan-applications/LoanApplicationDetailPage';
 import { LoanDetailPage } from './pages/admin/loans/LoanDetailPage';
+import { LoansListPage } from './pages/admin/loans/LoansListPage';
+import { ClientPrintPage } from './pages/admin/clients/ClientPrintPage';
+import { EditRequestsPage } from './pages/admin/clients/EditRequestsPage';
+import { SingleOnboardingPage } from './pages/onboarding/SingleOnboardingPage';
+import { GroupOnboardingPage } from './pages/onboarding/GroupOnboardingPage';
 
 const DASHBOARDS: Record<OfficeRole, ReactElement> = {
   director: <DirectorDashboard />,
@@ -48,6 +54,11 @@ const DASHBOARDS: Record<OfficeRole, ReactElement> = {
 function roleRoutes(role: OfficeRole) {
   return (
     <Route key={role} path={role} element={<RoleGate role={role} />}>
+      {/* The printable client data page has no portal chrome. */}
+      <Route element={<ModuleGate module="clients" />}>
+        <Route path="clients/:id/print" element={<ClientPrintPage />} />
+      </Route>
+
       <Route element={<Layout />}>
         <Route index element={DASHBOARDS[role]} />
         <Route path="profile" element={<ProfilePage />} />
@@ -65,11 +76,17 @@ function roleRoutes(role: OfficeRole) {
 
         <Route element={<ModuleGate module="clients" />}>
           <Route path="clients" element={<ClientsListPage />} />
-          <Route path="clients/new" element={<ClientFormPage />} />
+          <Route path="clients/edit-requests" element={<EditRequestsPage />} />
+          {/* Onboarding is multi-step, BVN-verified, and for managers and marketers only. */}
+          <Route element={<RoleOnlyGate roles={CLIENT_CREATOR_ROLES} message="Only managers and marketers can onboard clients." fallback="/clients" />}>
+            <Route path="clients/onboard" element={<SingleOnboardingPage />} />
+            <Route path="groups/onboard" element={<GroupOnboardingPage />} />
+          </Route>
+          <Route path="clients/new" element={<Navigate to={`/${role}/clients/onboard`} replace />} />
+          <Route path="groups/new" element={<Navigate to={`/${role}/groups/onboard`} replace />} />
           <Route path="clients/:id" element={<ClientDetailPage />} />
           <Route path="clients/:id/edit" element={<ClientFormPage />} />
           <Route path="groups" element={<GroupsListPage />} />
-          <Route path="groups/new" element={<GroupFormPage />} />
           <Route path="groups/:id" element={<GroupDetailPage />} />
           <Route path="groups/:id/edit" element={<GroupFormPage />} />
         </Route>
@@ -79,6 +96,7 @@ function roleRoutes(role: OfficeRole) {
           <Route path="loan-applications/new" element={<LoanApplicationFormPage />} />
           <Route path="loan-applications/:id" element={<LoanApplicationDetailPage />} />
           <Route path="loan-applications/:id/edit" element={<LoanApplicationFormPage />} />
+          <Route path="loans" element={<LoansListPage />} />
           <Route path="loans/:id" element={<LoanDetailPage />} />
         </Route>
 

@@ -5,6 +5,7 @@ import { useRolePath } from '../../../hooks/useRolePath';
 import apiClient from '../../../api/apiClient';
 import type { ClientType } from './ClientsListPage';
 import { PHONE_MAX_DIGITS, sanitizePhoneInput, toLocalPhone } from '../../../utils/phone';
+import { sanitizeWholeNumber } from '../../../utils/numeric';
 
 interface Office {
   id: number;
@@ -27,6 +28,9 @@ interface ClientFormState {
   phone: string;
   email: string;
   occupation: string;
+  nationality: string;
+  externalId: string;
+  businessAddress: string;
   officeId: string;
   staffId: string;
   street: string;
@@ -57,6 +61,9 @@ const EMPTY_FORM: ClientFormState = {
   phone: '',
   email: '',
   occupation: '',
+  nationality: '',
+  externalId: '',
+  businessAddress: '',
   officeId: '',
   staffId: '',
   street: '',
@@ -76,18 +83,24 @@ function field<K extends keyof ClientFormState>(
   setForm: (form: ClientFormState) => void,
   key: K,
   label: string,
-  type: 'text' | 'date' | 'email' | 'tel' = 'text',
+  type: 'text' | 'date' | 'email' | 'tel' | 'digits' = 'text',
+  maxDigits?: number,
 ) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input
-        type={type}
-        inputMode={type === 'tel' ? 'numeric' : undefined}
-        maxLength={type === 'tel' ? PHONE_MAX_DIGITS : undefined}
+        type={type === 'digits' ? 'text' : type}
+        inputMode={type === 'tel' || type === 'digits' ? 'numeric' : undefined}
+        maxLength={type === 'tel' ? PHONE_MAX_DIGITS : type === 'digits' ? maxDigits : undefined}
         placeholder={type === 'tel' ? '08031234567' : undefined}
         value={form[key]}
-        onChange={(e) => setForm({ ...form, [key]: type === 'tel' ? sanitizePhoneInput(e.target.value) : e.target.value })}
+        onChange={(e) =>
+          setForm({
+            ...form,
+            [key]: type === 'tel' ? sanitizePhoneInput(e.target.value) : type === 'digits' ? sanitizeWholeNumber(e.target.value, maxDigits) : e.target.value,
+          })
+        }
         className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
       />
     </div>
@@ -140,6 +153,9 @@ export function ClientFormPage() {
           phone: toLocalPhone(c.phone),
           email: c.email ?? '',
           occupation: c.occupation ?? '',
+          nationality: c.nationality ?? '',
+          externalId: c.externalId ?? '',
+          businessAddress: c.businessAddress ?? '',
           officeId: c.officeId?.toString() ?? '',
           staffId: c.staffId?.toString() ?? '',
           street: c.street ?? '',
@@ -167,7 +183,7 @@ export function ClientFormPage() {
         officeId: form.officeId ? Number(form.officeId) : null,
         staffId: form.staffId ? Number(form.staffId) : null,
         referredById: null,
-        externalId: null,
+        externalId: form.externalId.trim() || null,
         title: form.title || null,
         firstName: form.firstName || null,
         middleName: form.middleName || null,
@@ -194,6 +210,8 @@ export function ClientFormPage() {
         country: form.country || null,
         state: form.state || null,
         city: form.city || null,
+        nationality: form.nationality.trim() || null,
+        businessAddress: form.businessAddress.trim() || null,
       };
 
       if (isEditing) {
@@ -275,18 +293,20 @@ export function ClientFormPage() {
                 </select>
               </div>
             )}
-            {field(form, setForm, 'occupation', 'Occupation')}
+            {field(form, setForm, 'occupation', 'Occupation / Type of Business')}
+            {field(form, setForm, 'nationality', 'Nationality')}
           </div>
         </section>
 
         <section>
           <h2 className="text-sm font-heading font-bold text-gray-500 uppercase tracking-wide mb-4">Contact & KYC</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {field(form, setForm, 'bvn', 'BVN')}
+            {field(form, setForm, 'bvn', 'BVN', 'digits', 11)}
             {field(form, setForm, 'mobile', 'Mobile', 'tel')}
             {field(form, setForm, 'phone', 'Phone', 'tel')}
             {field(form, setForm, 'email', 'Email', 'email')}
             {field(form, setForm, 'joinedDate', 'Joined Date', 'date')}
+            {field(form, setForm, 'externalId', 'External ID')}
           </div>
         </section>
 
@@ -306,7 +326,7 @@ export function ClientFormPage() {
                 ))}
               </select>
             </div>
-            {field(form, setForm, 'staffId', 'Staff ID')}
+            {field(form, setForm, 'staffId', 'Staff ID', 'digits')}
           </div>
         </section>
 
@@ -321,7 +341,8 @@ export function ClientFormPage() {
             {field(form, setForm, 'state', 'State')}
             {field(form, setForm, 'country', 'Country')}
             {field(form, setForm, 'postalCode', 'Postal Code')}
-            {field(form, setForm, 'address', 'Address Line')}
+            {field(form, setForm, 'address', 'Residential Address')}
+            {field(form, setForm, 'businessAddress', 'Business Address')}
           </div>
         </section>
 

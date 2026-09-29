@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import apiClient from '../../../api/apiClient';
 import { formatMoney } from '../../../utils/money';
+import { sanitizeWholeNumber } from '../../../utils/numeric';
 
 interface TrialBalanceRow {
   glAccountId: number;
@@ -107,7 +108,7 @@ export function ReportsPage() {
       <div className="flex items-end gap-3 mb-4">
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">Office ID</label>
-          <input type="text" value={officeId} onChange={(e) => setOfficeId(e.target.value)} className="w-32 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+          <input type="text" inputMode="numeric" value={officeId} onChange={(e) => setOfficeId(sanitizeWholeNumber(e.target.value))} className="w-32 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">From</label>

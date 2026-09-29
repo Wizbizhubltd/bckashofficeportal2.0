@@ -1,19 +1,27 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useRolePath } from '../../../hooks/useRolePath';
 import toast from 'react-hot-toast';
 import { AlertTriangleIcon, RotateCcwIcon, BanknoteIcon, XOctagonIcon, CalendarClockIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
+import { FaceChecksPanel } from './sections/FaceChecksPanel';
+import { LoanSummaryCards } from './sections/LoanSummaryCards';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { SimpleCrudScreen } from '../SimpleCrudScreen';
 import { ScheduleSection } from './sections/ScheduleSection';
 import { RepaymentsSection } from './sections/RepaymentsSection';
 import { formatMoney } from '../../../utils/money';
+import { disbursementModeLabel, type DisbursementMode } from '../../../utils/disbursement';
+import { sanitizeDecimal } from '../../../utils/numeric';
 
 type LoanStatus = 'New' | 'Pending' | 'Approved' | 'NeedChanges' | 'Disbursed' | 'Declined' | 'Rejected' | 'Withdrawn' | 'WrittenOff' | 'Closed' | 'PendingReschedule' | 'Rescheduled' | 'Paid';
 
 interface LoanProfile {
   id: number;
+  applicantName: string | null;
+  loanProductName: string | null;
+  officeName: string | null;
   clientType: 'Client' | 'Group';
   loanProductId: number | null;
   clientId: number | null;
@@ -35,6 +43,10 @@ interface LoanProfile {
   isNpa: boolean;
   incomeSuspended: boolean;
   notes: string | null;
+  disbursementMode: DisbursementMode | null;
+  disbursementBankName: string | null;
+  disbursementAccountNumber: string | null;
+  disbursementAccountName: string | null;
 }
 
 interface LoanCharge {
@@ -74,16 +86,24 @@ function toBadgeStatus(status: LoanStatus): 'Pending' | 'Approved' | 'Rejected' 
 }
 
 export function LoanDetailPage() {
+  const rolePath = useRolePath();
   const { id } = useParams<{ id: string }>();
   const loanId = Number(id);
 
   const [loan, setLoan] = useState<LoanProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [section, setSection] = useState<SectionKey>('profile');
+  // ?section=repayments (e.g. from a bell notification) opens that tab.
+  const [searchParams] = useSearchParams();
+  const [section, setSection] = useState<SectionKey>(() => {
+    const requested = searchParams.get('section');
+    return requested === 'schedule' || requested === 'repayments' || requested === 'charges' ? requested : 'profile';
+  });
   const [scheduleRefreshToken, setScheduleRefreshToken] = useState(0);
 
   const [showRequestChanges, setShowRequestChanges] = useState(false);
   const [showDisburse, setShowDisburse] = useState(false);
+  // Everyone receiving money must pass a face match first; the server refuses disbursement otherwise.
+  const [facesVerified, setFacesVerified] = useState(false);
   const [disbursedAmount, setDisbursedAmount] = useState('');
   const [disburseNotes, setDisburseNotes] = useState('');
   const [showWriteOff, setShowWriteOff] = useState(false);
@@ -205,7 +225,10 @@ export function LoanDetailPage() {
             )}
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {loan.clientType} · Approved {formatMoney(loan.approvedAmount)}
+            <Link to={rolePath(loan.clientId ? `/clients/${loan.clientId}` : `/groups/${loan.groupId}`)} className="font-medium text-primary hover:underline">
+              {loan.applicantName ?? (loan.clientId ? `Client #${loan.clientId}` : `Group #${loan.groupId}`)}
+            </Link>{' '}
+            · {loan.loanProductName ?? `${loan.clientType} loan`} · {loan.officeName ?? 'No office'} · Approved {formatMoney(loan.approvedAmount)}
           </p>
         </div>
 
@@ -214,7 +237,9 @@ export function LoanDetailPage() {
             <>
               <button
                 onClick={() => setShowDisburse(true)}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-3 py-2 rounded-lg"
+                disabled={!facesVerified}
+                title={facesVerified ? undefined : 'Every client receiving money must pass a face match first (face capture is mandatory).'}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-3 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <BanknoteIcon size={16} />
                 Disburse
@@ -258,6 +283,10 @@ export function LoanDetailPage() {
         </div>
       </div>
 
+      <LoanSummaryCards loanId={loanId} refreshToken={scheduleRefreshToken} />
+
+      {loan.status === 'Pending' && <FaceChecksPanel loanId={loanId} onChange={setFacesVerified} />}
+
       <div className="flex items-center gap-1 border-b border-gray-200 mb-6">
         {(['profile', 'schedule', 'repayments', 'charges'] as SectionKey[]).map((s) => (
           <button
@@ -282,6 +311,13 @@ export function LoanDetailPage() {
           <ProfileField label="Disbursement Date" value={loan.disbursementDate} />
           <ProfileField label="Approval Notes" value={loan.approvedNotes} />
           <ProfileField label="Disbursement Notes" value={loan.disbursedNotes} />
+          <ProfileField label="Disbursement Method" value={disbursementModeLabel(loan.disbursementMode)} />
+          {loan.disbursementMode === 'BankTransfer' && (
+            <ProfileField
+              label="Pay Into"
+              value={`${loan.disbursementAccountName ?? '—'} · ${loan.disbursementAccountNumber ?? '—'} · ${loan.disbursementBankName ?? '—'}`}
+            />
+          )}
           {loan.status === 'WrittenOff' && <ProfileField label="Written-Off Date" value={loan.writtenOffDate} />}
           {loan.status === 'WrittenOff' && <ProfileField label="Written-Off Reason" value={loan.writtenOffNotes} />}
           <ProfileField label="Notes" value={loan.notes} />
@@ -358,13 +394,18 @@ export function LoanDetailPage() {
             <p className="text-xs text-gray-500 mb-4">
               This generates the full repayment schedule (best-effort formula — see docs/interest-calculation-spec.md).
             </p>
+            <p className="text-sm text-gray-700 mb-4 rounded-lg bg-gray-50 px-3 py-2">
+              {disbursementModeLabel(loan.disbursementMode)}
+              {loan.disbursementMode === 'BankTransfer' && ` to ${loan.disbursementAccountName ?? '—'}, ${loan.disbursementAccountNumber ?? '—'} (${loan.disbursementBankName ?? '—'})`}
+            </p>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Disbursed Amount</label>
                 <input
                   type="text"
+                  inputMode="decimal"
                   value={disbursedAmount}
-                  onChange={(e) => setDisbursedAmount(e.target.value)}
+                  onChange={(e) => setDisbursedAmount(sanitizeDecimal(e.target.value))}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>
@@ -405,8 +446,9 @@ export function LoanDetailPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">New Outstanding Principal</label>
                 <input
                   type="text"
+                  inputMode="decimal"
                   value={reschedulePrincipal}
-                  onChange={(e) => setReschedulePrincipal(e.target.value)}
+                  onChange={(e) => setReschedulePrincipal(sanitizeDecimal(e.target.value))}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>

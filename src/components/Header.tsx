@@ -1,5 +1,6 @@
 import { useLocation } from 'react-router-dom';
 import { MenuIcon, SearchIcon, UserIcon } from 'lucide-react';
+import { NotificationBell } from './NotificationBell';
 
 const SECTION_TITLES: Record<string, string> = {
   '': 'Dashboard',
@@ -43,6 +44,8 @@ export function Header({ onOpenMobileSidebar }: HeaderProps) {
             className="bg-transparent border-none focus:outline-none text-sm font-body w-full text-gray-700"
           />
         </div>
+
+        <NotificationBell />
 
         <div className="lg:hidden">
           <div className="w-8 h-8 rounded-full border border-gray-200 bg-gray-100 text-gray-500 flex items-center justify-center">

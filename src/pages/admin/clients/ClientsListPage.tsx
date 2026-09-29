@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useRolePath } from '../../../hooks/useRolePath';
-import { PlusIcon, SearchIcon } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext';
+import { CLIENT_CREATOR_ROLES, type OfficeRole } from '../../../config/roles';
+import { PlusIcon, SearchIcon, ShieldAlertIcon, UsersRoundIcon } from 'lucide-react';
 import apiClient from '../../../api/apiClient';
 import { Pagination } from '../../../components/Pagination';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { PHONE_MAX_DIGITS, sanitizePhoneInput } from '../../../utils/phone';
+import { sanitizeWholeNumber } from '../../../utils/numeric';
 
 export type ClientStatus = 'Pending' | 'Active' | 'Inactive' | 'Declined' | 'Closed';
 export type ClientType = 'Individual' | 'Business' | 'Ngo' | 'Other';
@@ -25,6 +28,7 @@ export interface ClientListItem {
   status: ClientStatus;
   clientType: ClientType | null;
   joinedDate: string | null;
+  isHighRisk: boolean;
 }
 
 interface PagedResult<T> {
@@ -104,6 +108,9 @@ export function ClientsListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, accountNo, bvn, mobile, officeId, status]);
 
+  const { userType } = useAuth();
+  const canAddClient = CLIENT_CREATOR_ROLES.includes(userType as OfficeRole);
+
   const officeName = (id: number | null) => offices.find((o) => o.id === id)?.name ?? '—';
 
   return (
@@ -113,13 +120,24 @@ export function ClientsListPage() {
           <h1 className="text-xl font-heading font-bold text-primary">Clients</h1>
           <p className="text-sm text-gray-500 mt-1">Search and manage client records (FR-CLI-5).</p>
         </div>
-        <Link
-          to={rolePath('/clients/new')}
-          className="flex items-center gap-2 bg-accent hover:bg-[#e64a19] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          <PlusIcon size={16} />
-          Add Client
-        </Link>
+        {canAddClient && (
+          <div className="flex gap-2">
+            <Link
+              to={rolePath('/groups/onboard')}
+              className="flex items-center gap-2 border border-primary/30 text-primary hover:bg-primary/5 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              <UsersRoundIcon size={16} />
+              Onboard group
+            </Link>
+            <Link
+              to={rolePath('/clients/onboard')}
+              className="flex items-center gap-2 bg-accent hover:bg-[#e64a19] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              <PlusIcon size={16} />
+              Onboard client
+            </Link>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 p-4 mb-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -140,7 +158,9 @@ export function ClientsListPage() {
         />
         <input
           value={bvn}
-          onChange={(e) => setBvn(e.target.value)}
+          inputMode="numeric"
+          maxLength={11}
+          onChange={(e) => setBvn(sanitizeWholeNumber(e.target.value, 11))}
           placeholder="BVN"
           className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
         />
@@ -208,7 +228,16 @@ export function ClientsListPage() {
                   <td className="px-4 py-3 text-gray-700">{item.displayName || `${item.firstName ?? ''} ${item.lastName ?? ''}`.trim()}</td>
                   <td className="px-4 py-3 text-gray-700">{item.mobile || '—'}</td>
                   <td className="px-4 py-3 text-gray-700">{officeName(item.officeId)}</td>
-                  <td className="px-4 py-3"><StatusBadge status={item.status} /></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={item.status} />
+                      {item.isHighRisk && (
+                        <span title="High risk — awaiting a super admin" className="inline-flex items-center gap-1 text-xs font-medium text-red-600">
+                          <ShieldAlertIcon size={14} /> High risk
+                        </span>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))
             )}

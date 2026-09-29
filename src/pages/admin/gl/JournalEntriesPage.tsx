@@ -4,6 +4,7 @@ import { PlusIcon, CheckIcon, RotateCcwIcon, TrashIcon, XIcon } from 'lucide-rea
 import apiClient from '../../../api/apiClient';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { formatMoney } from '../../../utils/money';
+import { sanitizeDecimal } from '../../../utils/numeric';
 
 interface GlAccountOption {
   id: number;
@@ -243,9 +244,10 @@ export function JournalEntriesPage() {
                   </select>
                   <input
                     type="text"
+                    inputMode="decimal"
                     placeholder="Amount"
                     value={line.amount}
-                    onChange={(e) => setLines(lines.map((l, i) => (i === index ? { ...l, amount: e.target.value } : l)))}
+                    onChange={(e) => setLines(lines.map((l, i) => (i === index ? { ...l, amount: sanitizeDecimal(e.target.value) } : l)))}
                     className="w-32 px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                   />
                   <button

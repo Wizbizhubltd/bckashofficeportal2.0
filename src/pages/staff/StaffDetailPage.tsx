@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeftIcon, BanIcon, Building2Icon, CheckCircleIcon, KeyRoundIcon, UnlockIcon, UserCogIcon, XCircleIcon } from 'lucide-react';
+import { BanIcon, Building2Icon, CheckCircleIcon, KeyRoundIcon, UnlockIcon, UserCogIcon, XCircleIcon } from 'lucide-react';
 import { usersApi, staffName, type StaffUser, type UserClass } from '../../api/usersApi';
 import { useRolePath } from '../../hooks/useRolePath';
 import { useScopedOffices } from '../../hooks/useScopedOffices';
@@ -81,10 +81,6 @@ export function StaffDetailPage() {
 
   return (
     <div className="max-w-5xl space-y-4">
-      <Link to={rolePath('/staff')} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary">
-        <ArrowLeftIcon size={14} />
-        Staff directory
-      </Link>
 
       <div className="bg-white rounded-xl border border-gray-100 p-6">
         <div className="flex items-start justify-between flex-wrap gap-4">

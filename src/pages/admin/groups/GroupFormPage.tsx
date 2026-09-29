@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useRolePath } from '../../../hooks/useRolePath';
 import apiClient from '../../../api/apiClient';
 import { PHONE_MAX_DIGITS, sanitizePhoneInput, toLocalPhone } from '../../../utils/phone';
+import { sanitizeWholeNumber } from '../../../utils/numeric';
 
 interface Office {
   id: number;
@@ -47,18 +48,20 @@ function field<K extends keyof GroupFormState>(
   setForm: (form: GroupFormState) => void,
   key: K,
   label: string,
-  type: 'text' | 'date' | 'email' | 'tel' = 'text',
+  type: 'text' | 'date' | 'email' | 'tel' | 'digits' = 'text',
 ) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
       <input
-        type={type}
-        inputMode={type === 'tel' ? 'numeric' : undefined}
+        type={type === 'digits' ? 'text' : type}
+        inputMode={type === 'tel' || type === 'digits' ? 'numeric' : undefined}
         maxLength={type === 'tel' ? PHONE_MAX_DIGITS : undefined}
         placeholder={type === 'tel' ? '08031234567' : undefined}
         value={form[key]}
-        onChange={(e) => setForm({ ...form, [key]: type === 'tel' ? sanitizePhoneInput(e.target.value) : e.target.value })}
+        onChange={(e) =>
+          setForm({ ...form, [key]: type === 'tel' ? sanitizePhoneInput(e.target.value) : type === 'digits' ? sanitizeWholeNumber(e.target.value) : e.target.value })
+        }
         className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
       />
     </div>
@@ -177,7 +180,7 @@ export function GroupFormPage() {
                 ))}
               </select>
             </div>
-            {field(form, setForm, 'staffId', 'Staff ID')}
+            {field(form, setForm, 'staffId', 'Staff ID', 'digits')}
             {field(form, setForm, 'joinedDate', 'Joined Date', 'date')}
           </div>
         </section>

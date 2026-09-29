@@ -8,6 +8,8 @@ import { StatusBadge } from '../../../components/StatusBadge';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { SimpleCrudScreen } from '../SimpleCrudScreen';
 import { formatMoney } from '../../../utils/money';
+import { disbursementModeLabel, type DisbursementMode } from '../../../utils/disbursement';
+import { sanitizeDecimal } from '../../../utils/numeric';
 
 type ApprovalStatus = 'Pending' | 'Approved' | 'Declined';
 
@@ -27,6 +29,15 @@ interface LoanApplicationProfile {
   approvedNotes: string | null;
   declinedNotes: string | null;
   notes: string | null;
+  applicantName: string | null;
+  loanProductName: string | null;
+  officeName: string | null;
+  disbursementMode: DisbursementMode | null;
+  disbursementBankName: string | null;
+  disbursementAccountNumber: string | null;
+  disbursementAccountName: string | null;
+  /** The non-refundable application form fee charged when this application was raised; null when none was set. */
+  formFee: number | null;
 }
 
 interface Guarantor {
@@ -121,12 +132,18 @@ export function LoanApplicationDetailPage() {
             <StatusBadge status={application.status} />
           </div>
           <p className="text-sm text-gray-500 mt-1">
-            {application.clientType} · Requested {formatMoney(application.amount)}
+            <Link
+              to={rolePath(application.clientType === 'Group' ? `/groups/${application.groupId}` : `/clients/${application.clientId}`)}
+              className="font-medium text-primary hover:underline"
+            >
+              {application.applicantName ?? (application.clientType === 'Group' ? `Group #${application.groupId}` : `Client #${application.clientId}`)}
+            </Link>{' '}
+            · {application.clientType} loan · Requested {formatMoney(application.amount)}
             {application.loanId && (
               <>
                 {' '}· Linked loan{' '}
                 <Link to={rolePath(`/loans/${application.loanId}`)} className="text-primary hover:underline">
-                  #{application.loanId}
+                  view loan
                 </Link>
               </>
             )}
@@ -176,9 +193,19 @@ export function LoanApplicationDetailPage() {
 
       {section === 'profile' && (
         <div className="bg-white rounded-xl border border-gray-100 p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-          <ProfileField label="Loan Product ID" value={String(application.loanProductId)} />
+          <ProfileField label="Loan product" value={application.loanProductName ?? `Product #${application.loanProductId}`} />
+          <ProfileField label="Amount requested" value={formatMoney(application.amount)} />
+          <ProfileField label="Application form fee" value={application.formFee ? `${formatMoney(application.formFee)} (non-refundable)` : 'None'} />
+          <ProfileField label="Office" value={application.officeName} />
           <ProfileField label="Term" value={application.loanTerm ? `${application.loanTerm} ${application.loanTermType ?? ''}` : null} />
           <ProfileField label="Notes" value={application.notes} />
+          <ProfileField label="Disbursement Method" value={disbursementModeLabel(application.disbursementMode)} />
+          {application.disbursementMode === 'BankTransfer' && (
+            <ProfileField
+              label="Pay Into"
+              value={`${application.disbursementAccountName ?? '—'} · ${application.disbursementAccountNumber ?? '—'} · ${application.disbursementBankName ?? '—'}`}
+            />
+          )}
           {application.status === 'Approved' && <ProfileField label="Approved Notes" value={application.approvedNotes} />}
           {application.status === 'Declined' && <ProfileField label="Declined Reason" value={application.declinedNotes} />}
         </div>
@@ -237,8 +264,9 @@ export function LoanApplicationDetailPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Approved Amount</label>
                 <input
                   type="text"
+                  inputMode="decimal"
                   value={approvedAmount}
-                  onChange={(e) => setApprovedAmount(e.target.value)}
+                  onChange={(e) => setApprovedAmount(sanitizeDecimal(e.target.value))}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>

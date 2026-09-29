@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { PlusIcon, TrashIcon, XIcon, FlaskConicalIcon } from 'lucide-react';
 import apiClient from '../../api/apiClient';
+import { sanitizeWholeNumber } from '../../utils/numeric';
 
 const FIELD_TYPES = ['Number', 'Textfield', 'Date', 'Decimal', 'Textarea', 'Checkbox', 'Radiobox', 'Select'] as const;
 const OPTION_TYPES = new Set(['Checkbox', 'Radiobox', 'Select']);
@@ -289,11 +290,13 @@ export function CustomFieldsAdmin() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Test Record ID</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={testEntityId}
                   onChange={(e) => {
-                    setTestEntityId(e.target.value);
-                    void loadCapturedValues(testField, e.target.value);
+                    const id = sanitizeWholeNumber(e.target.value);
+                    setTestEntityId(id);
+                    void loadCapturedValues(testField, id);
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />

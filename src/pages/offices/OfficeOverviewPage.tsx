@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeftIcon, Building2Icon, FileClockIcon, UserCheckIcon, UsersIcon } from 'lucide-react';
+import { Building2Icon, FileClockIcon, UserCheckIcon, UsersIcon } from 'lucide-react';
 import apiClient from '../../api/apiClient';
 import { usersApi, staffName, type PagedResult, type StaffUser } from '../../api/usersApi';
 import { useMe } from '../../context/MeContext';
@@ -73,10 +73,6 @@ export function OfficeOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <Link to={rolePath('/offices')} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-primary">
-        <ArrowLeftIcon size={14} />
-        My zones & offices
-      </Link>
 
       <section className="rounded-2xl border border-slate-200/70 bg-white p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4 flex-wrap">

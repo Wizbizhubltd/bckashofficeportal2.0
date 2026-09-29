@@ -60,13 +60,17 @@ export const MODULES: Record<ModuleKey, ModuleDefinition> = {
     links: [
       { path: '/clients', label: 'Clients' },
       { path: '/groups', label: 'Groups' },
+      { path: '/clients/edit-requests', label: 'Edit Requests' },
     ],
   },
   loans: {
     key: 'loans',
     label: 'Loans',
     icon: LandmarkIcon,
-    links: [{ path: '/loan-applications', label: 'Loan Applications' }],
+    links: [
+      { path: '/loan-applications', label: 'Loan Applications' },
+      { path: '/loans', label: 'Loans' },
+    ],
   },
 };
 
@@ -81,6 +85,9 @@ export const ROLE_MODULES: Record<OfficeRole, ModuleKey[]> = {
   manager: ['staff', 'clients', 'loans'],
   marketer: ['clients', 'loans'],
 };
+
+/** Only these roles register new clients; directors and controllers oversee the client book. */
+export const CLIENT_CREATOR_ROLES: OfficeRole[] = ['manager', 'marketer'];
 
 export function roleHome(role: OfficeRole): string {
   return `/${role}`;

@@ -10,3 +10,6 @@ export const DEVICE_ID_KEY = 'bckashDeviceId';
 
 // sessionStorage: why the user was just sent back to the login screen, shown there once.
 export const SIGNED_OUT_REASON_KEY = 'bckashSignedOutReason';
+
+// localStorage: when the user last did anything, shared by every open tab so working in one keeps the others signed in.
+export const LAST_ACTIVITY_KEY = 'bckashLastActivity';

@@ -6,6 +6,7 @@ import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { TransactionsSection } from './sections/TransactionsSection';
 import { ChargesSection } from './sections/ChargesSection';
 import { formatMoney } from '../../../utils/money';
+import { sanitizeDecimal, sanitizeWholeNumber } from '../../../utils/numeric';
 
 interface SavingsAccount {
   id: number;
@@ -217,8 +218,9 @@ export function SavingsAccountDetailPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Opening Balance (optional)</label>
                 <input
                   type="text"
+                  inputMode="decimal"
                   value={openingBalance}
-                  onChange={(e) => setOpeningBalance(e.target.value)}
+                  onChange={(e) => setOpeningBalance(sanitizeDecimal(e.target.value))}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>
@@ -226,8 +228,9 @@ export function SavingsAccountDetailPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Overdraft Limit (optional)</label>
                 <input
                   type="text"
+                  inputMode="decimal"
                   value={overdraftLimit}
-                  onChange={(e) => setOverdraftLimit(e.target.value)}
+                  onChange={(e) => setOverdraftLimit(sanitizeDecimal(e.target.value))}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>
@@ -253,8 +256,9 @@ export function SavingsAccountDetailPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Loan ID</label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   value={repayLoanId}
-                  onChange={(e) => setRepayLoanId(e.target.value)}
+                  onChange={(e) => setRepayLoanId(sanitizeWholeNumber(e.target.value))}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>
@@ -262,8 +266,9 @@ export function SavingsAccountDetailPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
                 <input
                   type="text"
+                  inputMode="decimal"
                   value={repayAmount}
-                  onChange={(e) => setRepayAmount(e.target.value)}
+                  onChange={(e) => setRepayAmount(sanitizeDecimal(e.target.value))}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                 />
               </div>

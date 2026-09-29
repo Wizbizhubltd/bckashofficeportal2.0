@@ -4,7 +4,9 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { ChangePasswordModal } from './ChangePasswordModal';
 import { UnauthorizedAlert } from './access/UnauthorizedAlert';
+import { BackButton } from './BackButton';
 import { useAuth } from '../context/AuthContext';
+import { IdleLogout } from './IdleLogout';
 import { loadCurrencyDisplay, useCurrencyDisplay } from '../utils/money';
 
 export function Layout() {
@@ -31,6 +33,7 @@ export function Layout() {
 
         <main className="flex-1 overflow-y-auto p-4 lg:p-8 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
           <div className="max-w-7xl mx-auto">
+            <BackButton />
             <UnauthorizedAlert />
             <Outlet />
           </div>
@@ -38,6 +41,7 @@ export function Layout() {
       </div>
 
       {mustChangePassword && <ChangePasswordModal />}
+      <IdleLogout />
     </div>
   );
 }
