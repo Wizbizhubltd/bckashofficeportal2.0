@@ -218,6 +218,12 @@ export function BvnVerificationCard({
         </span>
       </div>
 
+      {check?.fromBvn.birthDate && (
+        <p className="mt-3 text-xs text-gray-500">
+          Date of birth on the BVN record: <span className="font-medium text-gray-700">{check.fromBvn.birthDate}</span> — saved as the client's date of birth.
+        </p>
+      )}
+
       {draft.checkError && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
           {draft.checkError}
@@ -256,11 +262,7 @@ export function BvnVerificationCard({
                   ))}
                 </tbody>
               </table>
-              {(check.fromBvn.birthDate || check.fromBvn.gender) && (
-                <p className="mt-2 text-xs text-gray-400">
-                  BVN record also shows: {[check.fromBvn.gender, check.fromBvn.birthDate && `born ${check.fromBvn.birthDate}`].filter(Boolean).join(', ')}
-                </p>
-              )}
+              {check.fromBvn.gender && <p className="mt-2 text-xs text-gray-400">BVN record also shows: {check.fromBvn.gender}</p>}
             </div>
           </div>
 
