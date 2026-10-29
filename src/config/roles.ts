@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Building2Icon, LandmarkIcon, UserCogIcon, UsersIcon } from 'lucide-react';
+import { Building2Icon, LandmarkIcon, UserCogIcon, UsersIcon, WalletIcon } from 'lucide-react';
 
 /**
  * The user types that sign in to the office portal. Super admins use the control portal only
@@ -28,7 +28,7 @@ export function rolesBelow(role: OfficeRole): OfficeRole[] {
   return OFFICE_ROLES.filter((other) => ROLE_RANK[other] < ROLE_RANK[role]);
 }
 
-export type ModuleKey = 'offices' | 'staff' | 'clients' | 'loans';
+export type ModuleKey = 'offices' | 'staff' | 'clients' | 'loans' | 'funding';
 
 export interface ModuleDefinition {
   key: ModuleKey;
@@ -72,17 +72,24 @@ export const MODULES: Record<ModuleKey, ModuleDefinition> = {
       { path: '/loans', label: 'Loans' },
     ],
   },
+  funding: {
+    key: 'funding',
+    label: 'Office Funding',
+    icon: WalletIcon,
+    links: [{ path: '/funding', label: 'Office Funding' }],
+  },
 };
 
 /**
  * Modules each role gets by default. A marketer works clients and loans; a manager and a
- * controller (who outranks the manager in the same office) also manage staff; a director
- * additionally oversees every office in the zones a super admin assigned them.
+ * controller (who outranks the manager in the same office) also manage staff, and a manager
+ * acknowledges the funding sent to their office; a director additionally oversees every office in
+ * the zones a super admin assigned them.
  */
 export const ROLE_MODULES: Record<OfficeRole, ModuleKey[]> = {
   director: ['offices', 'staff', 'clients', 'loans'],
   controller: ['staff', 'clients', 'loans'],
-  manager: ['staff', 'clients', 'loans'],
+  manager: ['staff', 'clients', 'loans', 'funding'],
   marketer: ['clients', 'loans'],
 };
 

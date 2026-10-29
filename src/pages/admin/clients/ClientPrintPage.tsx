@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { PrinterIcon } from 'lucide-react';
 import {
@@ -7,7 +7,6 @@ import {
   type ClientContact,
   type ClientDetail,
   type ClientGroupMembership,
-  type ClientLoan,
   type ClientLoanForm,
 } from '../../../api/clientsApi';
 import { PassportPhoto } from '../../../components/PassportPhoto';
@@ -34,7 +33,18 @@ const EMPTY_LOAN_FORM: ClientLoanForm = {
   groupMembers: [],
 };
 
-const NEW_PAGE: CSSProperties = { breakBefore: 'page' };
+// Each form section follows straight on, marked off by a thick rule rather than a new page, so the whole
+// print stays within four A4 pages without half-empty sheets.
+const SECTION_DIVIDER = 'mt-8 border-t-4 border-gray-800 pt-4';
+
+// Laid out for printing on both sides of A4. A web page can't switch duplex on — that's the print dialog's
+// "Print on both sides" — so the screen says so, and the margins mirror (wider on the inside edge, where the
+// sheets are stapled or filed) with a page number on every side to keep fronts and backs in order.
+const DUPLEX_PRINT_STYLE = `
+@page { size: A4; margin: 12mm 12mm 14mm; @bottom-center { content: "Page " counter(page) " of " counter(pages); font-size: 9px; color: #6b7280; } }
+@page :right { margin-left: 18mm; margin-right: 10mm; }
+@page :left { margin-left: 10mm; margin-right: 18mm; }
+`;
 
 interface Guarantor extends ClientContact {
   photoUrl: string | null;
@@ -51,7 +61,6 @@ export function ClientPrintPage() {
   const clientId = Number(useParams<{ id: string }>().id);
   const [client, setClient] = useState<ClientDetail | null>(null);
   const [groups, setGroups] = useState<ClientGroupMembership[]>([]);
-  const [loans, setLoans] = useState<ClientLoan[]>([]);
   const [loanForm, setLoanForm] = useState<ClientLoanForm>(EMPTY_LOAN_FORM);
   const [guarantors, setGuarantors] = useState<Guarantor[]>([]);
   const [references, setReferences] = useState<ClientContact[]>([]);
@@ -74,15 +83,13 @@ export function ClientPrintPage() {
     Promise.all([
       clientsApi.get(clientId),
       clientsApi.groups(clientId).catch(() => []),
-      clientsApi.loans(clientId).then((r) => r.items).catch(() => []),
       clientsApi.loanForm(clientId).catch(() => EMPTY_LOAN_FORM),
       loadGuarantors(),
       clientsApi.contacts(clientId, 'references').catch(() => []),
     ])
-      .then(([c, g, l, f, gs, rs]) => {
+      .then(([c, g, f, gs, rs]) => {
         setClient(c);
         setGroups(g);
-        setLoans(l);
         setLoanForm(f);
         setGuarantors(gs);
         setReferences(rs);
@@ -110,13 +117,18 @@ export function ClientPrintPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 py-8 print:bg-white print:py-0">
-      <div className="mx-auto mb-4 flex max-w-[210mm] justify-end print:hidden">
+      <style>{DUPLEX_PRINT_STYLE}</style>
+      <div className="mx-auto mb-4 flex max-w-[210mm] flex-wrap items-center justify-between gap-3 print:hidden">
+        <p className="flex-1 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800">
+          To print on the front and back of each sheet (2–3 sheets instead of 5–6), tick <strong>Print on both sides</strong> in the print dialog — in
+          Chrome and Edge it's under <strong>More settings</strong> (choose <strong>Long edge</strong> if asked). Your printer must support two-sided printing.
+        </p>
         <button onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-heading font-bold text-white hover:bg-primary/90">
           <PrinterIcon size={16} /> Print
         </button>
       </div>
 
-      <article className="mx-auto max-w-[210mm] bg-white p-[15mm] text-[13px] text-gray-800 shadow print:max-w-none print:p-0 print:shadow-none">
+      <article className="mx-auto max-w-[210mm] bg-white p-[15mm] text-[13px] leading-tight text-gray-800 shadow print:max-w-none print:p-0 print:shadow-none">
         <header className="flex items-center justify-between border-b-2 border-primary pb-4">
           <div className="rounded bg-primary px-3 py-2">
             <Logo width={120} height={40} />
@@ -202,34 +214,6 @@ export function ClientPrintPage() {
           </div>
         </section>
 
-        <section className="mt-6 break-inside-avoid">
-          <Heading>Loan record</Heading>
-          {loans.length === 0 ? (
-            <p className="text-gray-500">No loans on record.</p>
-          ) : (
-            <table className="w-full">
-              <thead className="text-left text-xs uppercase text-gray-500">
-                <tr>
-                  <th className="py-1">Loan</th>
-                  <th className="py-1 text-right">Requested</th>
-                  <th className="py-1 text-right">Approved</th>
-                  <th className="py-1 pl-4">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {loans.map((loan) => (
-                  <tr key={loan.id}>
-                    <td className="py-1">{loan.accountNumber ?? `#${loan.id}`}</td>
-                    <td className="py-1 text-right">{formatMoney(loan.appliedAmount)}</td>
-                    <td className="py-1 text-right">{loan.approvedAmount === null ? '—' : formatMoney(loan.approvedAmount)}</td>
-                    <td className="py-1 pl-4">{loan.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-
         <section className="mt-6">
           <Heading>Guarantors</Heading>
           {guarantors.length === 0 ? (
@@ -269,11 +253,11 @@ export function ClientPrintPage() {
         </footer>
 
         {/* Conditions and the borrower's declaration */}
-        <section style={NEW_PAGE} className="pt-2">
+        <section className={SECTION_DIVIDER}>
           <h2 className="mb-3 text-center font-heading text-lg">
             Conditions for taking <span className="font-bold">{society}.</span>
           </h2>
-          <ol className="list-decimal space-y-1 pl-5 text-justify text-[12px] leading-snug">
+          <ol className="list-decimal space-y-1 pl-5 text-justify text-[12px] leading-tight">
             <li>
               Deposit: Members are expected to deposit 35% of the loan amount they intend to take before collecting the loan or make six weeks payment after collecting
               the loan as deposit before commencement of the repayment of the loan. Members who make lump sum deposit will not be required to pay the six deposit
@@ -319,7 +303,7 @@ export function ClientPrintPage() {
           </ol>
 
           <h3 className="mb-2 mt-6 text-center font-heading text-base underline">Declaration</h3>
-          <p className="text-justify text-[12px] leading-snug">
+          <p className="text-justify text-[12px] leading-tight">
             I <Fill>{name}</Fill> have collected a document where the conditions for the loan are clearly stated and hereby acknowledge collection. I also fully
             understand the aforesaid terms and conditions of this group/cooperative society and hereby accept to abide by the rules and conditions herein specified. I
             also accept whatever actions agreed to indemnify the society myself in the event of any failure by them to remit the group's payment to the society. Also
@@ -329,9 +313,9 @@ export function ClientPrintPage() {
         </section>
 
         {/* Guarantor's declaration and office use */}
-        <section style={NEW_PAGE} className="pt-2">
+        <section className={SECTION_DIVIDER}>
           <h3 className="mb-2 font-heading text-sm font-bold">GUARANTOR'S DECLARATION FORM</h3>
-          <p className="text-justify text-[12px] leading-snug">
+          <p className="text-justify text-[12px] leading-tight">
             I <Fill>{guarantors.map((g) => g.fullName).join(' & ')}</Fill> declare that <Fill>{name}</Fill>. The borrower is well known to me. I am aware of his/her
             membership of <strong>{society}</strong> and have been acquainted with the terms and conditions of the society and the loan. I also guarantee to pay back the
             principal loan and accrued interest and indemnify <strong>{society}</strong> should the borrower breach any condition for which the loan is granted as
@@ -357,9 +341,9 @@ export function ClientPrintPage() {
         </section>
 
         {/* Group guarantor's form */}
-        <section style={NEW_PAGE} className="pt-2">
+        <section className={SECTION_DIVIDER}>
           <h2 className="mb-3 text-center font-heading text-lg">GROUP GUARANTOR'S FORM</h2>
-          <p className="text-justify text-[12px] leading-snug">
+          <p className="text-justify text-[12px] leading-tight">
             We <Fill>{groupName ?? ''}</Fill> Group hereby declare that <Fill>{name}</Fill> (the borrower) is well known to the group members (listed herein after). We
             also state that we know his/her residence and should he/she fail in his/her obligation to BC Kash, we individually, jointly and severally guarantee the
             borrower and declare that we will be liable to <strong>{society}</strong> in any amount in debit of the borrower.
@@ -387,17 +371,17 @@ export function ClientPrintPage() {
         </section>
 
         {/* Agreement between the member and the group */}
-        <section style={NEW_PAGE} className="pt-2">
+        <section className={SECTION_DIVIDER}>
           <h2 className="mb-3 text-center font-heading text-lg">AGREEMENT BETWEEN</h2>
           <p className="text-[12px]">
             Mr./Mrs./Miss: <Fill>{name}</Fill> AND <Fill>{groupName ?? ''}</Fill> GROUP
           </p>
           <h3 className="mb-1 mt-3 text-xs font-bold">CONDITIONS FOR MEMBERSHIP</h3>
-          <p className="text-justify text-[12px] leading-snug">
+          <p className="text-justify text-[12px] leading-tight">
             Having been informed about <Fill>{groupName ?? ''}</Fill> group by <Fill>{''}</Fill> another member of group/friend/relation, and having been informed of the
             affiliation of the Group with <strong>{society}</strong>, I undertake to abide by the following conditions.
           </p>
-          <ul className="mt-2 space-y-1 pl-5 text-justify text-[12px] leading-snug">
+          <ul className="mt-2 space-y-1 pl-5 text-justify text-[12px] leading-tight">
             <li>
               Deposit: Members are expected to deposit 35% of the loan amount they intend to take before collecting the loan or make six weeks payment after collecting
               the loan as deposit before commencement of the repayment of the loan. Members who make lump sum deposit will not be required to pay the six deposit
@@ -448,14 +432,14 @@ export function ClientPrintPage() {
         </section>
 
         {/* Without prejudice: the reference form */}
-        <section style={NEW_PAGE} className="pt-2">
+        <section className={SECTION_DIVIDER}>
           <h2 className="text-center font-heading text-lg">WITHOUT PREJUDICE</h2>
           <h2 className="mb-3 text-center font-heading text-lg">REFERENCE FORM</h2>
-          <p className="text-justify text-[12px] leading-snug">
+          <p className="text-justify text-[12px] leading-tight">
             <strong>{society}</strong> is a cooperative society committed to improving the lives and business of its members especially the women, through granting of
             credit to them.
           </p>
-          <p className="mt-2 text-justify text-[12px] leading-snug">
+          <p className="mt-2 text-justify text-[12px] leading-tight">
             Mr./Mrs./Miss <Fill>{name}</Fill> Leader/secretary of <Fill>{''}</Fill> group had indicated interest in <Fill>{groupName ?? ''}</Fill> group which is
             affiliating to BC Kash, could you please reference this member. Your reference will to a great extent inform our decision not only to the member but to the
             group generally.
@@ -487,7 +471,7 @@ export function ClientPrintPage() {
               <Row label="Tel" value={client.mobile ?? client.phone} />
             </tbody>
           </table>
-          <p className="mt-4 text-justify text-[12px] leading-relaxed">
+          <p className="mt-4 text-justify text-[12px] leading-snug">
             Declaration: I <Fill>{reference?.fullName ?? ''}</Fill> of <Fill>{reference?.address ?? ''}</Fill> hereby declare that Mr/Mrs/Miss <Fill>{name}</Fill> of{' '}
             <Fill>{residentialAddress}</Fill> is well known to me and {pronoun(client.gender)} is of good character. Please feel comfortable to deal with{' '}
             {objectPronoun(client.gender)} in your business. I pledge to produce {objectPronoun(client.gender)} whenever needed.

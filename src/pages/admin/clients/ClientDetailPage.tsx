@@ -29,6 +29,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useMe } from '../../../context/MeContext';
 import { useRolePath } from '../../../hooks/useRolePath';
 import { StatusBadge } from '../../../components/StatusBadge';
+import { VerifyBvnModal } from '../../../components/VerifyBvnModal';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { PassportPhoto } from '../../../components/PassportPhoto';
 import { SimpleCrudScreen } from '../SimpleCrudScreen';
@@ -357,6 +358,7 @@ export function ClientDetailPage() {
                 setPhotoVersion((v) => v + 1);
                 void load();
               }}
+              onChanged={() => void load()}
             />
           )}
           {tab === 'groups' && <GroupsTab clientId={client.id} />}
@@ -482,7 +484,7 @@ const DOC_SECTIONS = [
 ] as const;
 type DocSection = (typeof DOC_SECTIONS)[number]['key'];
 
-function OverviewTab({ client, onEnrolled }: { client: ClientDetail; onEnrolled: () => void }) {
+function OverviewTab({ client, onEnrolled, onChanged }: { client: ClientDetail; onEnrolled: () => void; onChanged: () => void }) {
   // In the URL (?doc=…) so the photo's capture button can open Biometrics directly.
   const [searchParams, setSearchParams] = useSearchParams();
   const docParam = searchParams.get('doc');
@@ -490,6 +492,7 @@ function OverviewTab({ client, onEnrolled }: { client: ClientDetail; onEnrolled:
   const setSection = (key: DocSection) => setSearchParams(key === 'biometrics' ? {} : { doc: key }, { replace: true });
   const readOnly = !client.actions?.canEditDetails;
   const address = [client.address, client.street, client.city, client.state, client.country].filter(Boolean).join(', ');
+  const [verifyingBvn, setVerifyingBvn] = useState(false);
 
   return (
     <div className="space-y-8">
@@ -525,7 +528,24 @@ function OverviewTab({ client, onEnrolled }: { client: ClientDetail; onEnrolled:
         <h2 className="mb-4 text-xs font-heading font-bold uppercase tracking-widest text-gray-400">BVN verification & risk</h2>
         <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
           <Detail label="BVN" value={client.bvn} />
-          <Detail label="Verified" value={client.bvnVerifiedAt ? formatDate(client.bvnVerifiedAt, true) : 'Not verified (onboarded before BVN checks)'} />
+          <Detail
+            label="Verified"
+            value={
+              client.bvnVerifiedAt ? (
+                formatDate(client.bvnVerifiedAt, true)
+              ) : (
+                <span className="flex flex-wrap items-center gap-2">
+                  Not verified (onboarded before BVN checks)
+                  <button
+                    onClick={() => setVerifyingBvn(true)}
+                    className="inline-flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1 text-xs font-medium text-white hover:bg-primary/90"
+                  >
+                    <BadgeCheckIcon size={13} /> Verify now
+                  </button>
+                </span>
+              )
+            }
+          />
           <Detail
             label="Details on file"
             value={client.bvnDetailsSource === 'client' ? "Client's own (differ from BVN)" : client.bvnDetailsSource === 'bvn' ? 'From the BVN record' : null}
@@ -600,6 +620,7 @@ function OverviewTab({ client, onEnrolled }: { client: ClientDetail; onEnrolled:
           />
         )}
       </section>
+      {verifyingBvn && <VerifyBvnModal clientId={client.id} bvnOnFile={client.bvn} onClose={() => setVerifyingBvn(false)} onVerified={onChanged} />}
     </div>
   );
 }

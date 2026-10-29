@@ -89,7 +89,7 @@ export function BiometricsSection({ clientId, clientName, onEnrolled }: { client
             className="inline-flex items-center gap-2 self-start rounded-lg bg-accent px-4 py-2.5 text-sm font-heading font-bold text-white hover:bg-accent/90 sm:self-center"
           >
             <ScanFaceIcon size={18} />
-            {biometrics.enrolled || showFailure ? 'Recapture face' : 'Start face capture'}
+            {biometrics.enrolled || showFailure ? 'Recapture face' : 'Begin enrollment'}
           </button>
         )}
       </div>
