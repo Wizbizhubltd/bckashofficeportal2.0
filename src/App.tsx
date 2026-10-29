@@ -37,6 +37,7 @@ import { ClientPrintPage } from './pages/admin/clients/ClientPrintPage';
 import { EditRequestsPage } from './pages/admin/clients/EditRequestsPage';
 import { SingleOnboardingPage } from './pages/onboarding/SingleOnboardingPage';
 import { GroupOnboardingPage } from './pages/onboarding/GroupOnboardingPage';
+import { OfficeFundingPage } from './pages/OfficeFundingPage';
 
 const DASHBOARDS: Record<OfficeRole, ReactElement> = {
   director: <DirectorDashboard />,
@@ -98,6 +99,10 @@ function roleRoutes(role: OfficeRole) {
           <Route path="loan-applications/:id/edit" element={<LoanApplicationFormPage />} />
           <Route path="loans" element={<LoansListPage />} />
           <Route path="loans/:id" element={<LoanDetailPage />} />
+        </Route>
+
+        <Route element={<ModuleGate module="funding" />}>
+          <Route path="funding" element={<OfficeFundingPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to={`/${role}`} replace />} />
