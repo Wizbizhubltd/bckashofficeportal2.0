@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { clientsApi } from '../../api/clientsApi';
 import { applyEdit, detailsProblem, newDraft, type DraftClient } from './OnboardingParts';
 
@@ -44,4 +44,23 @@ export function useOnboardingDrafts(initialCount: number) {
     setServerErrors: (errors: Record<number, string>) =>
       setDrafts((prev) => prev.map((d, index) => ({ ...d, serverError: errors[index] ?? null }))),
   };
+}
+
+/**
+ * Whether onboarding needs each client's BVN verified (Settings → Customer Onboarding). `null` while
+ * loading; treated as required until known — and if it can't be loaded, since the API enforces it anyway.
+ */
+export function useBvnVerificationRequired(): boolean | null {
+  const [required, setRequired] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    clientsApi
+      .onboardingRules()
+      .then((rules) => !cancelled && setRequired(rules.bvnVerificationRequired))
+      .catch(() => !cancelled && setRequired(true));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return required;
 }

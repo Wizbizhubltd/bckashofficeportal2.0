@@ -39,6 +39,7 @@ import { ContactsSection } from './sections/ContactsSection';
 import { SavingsSection } from './sections/SavingsSection';
 import { useClientSavings } from '../../../hooks/useClientSavings';
 import { formatMoney } from '../../../utils/money';
+import { reassignedNote } from '../../../utils/format';
 
 const TABS = [
   { key: 'overview', label: 'Overview', icon: UserIcon },
@@ -146,8 +147,8 @@ export function ClientDetailPage() {
                 type="button"
                 onClick={() => setSearchParams({ doc: 'biometrics' }, { replace: true })}
                 className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow hover:bg-primary/90"
-                title="Capture the client's face — it becomes their profile picture"
-                aria-label="Capture the client's face"
+                title="Add the client's photo — capture their face, or upload a passport photo while face capture is off"
+                aria-label="Add the client's photo"
               >
                 <ScanFaceIcon size={16} />
               </button>
@@ -184,6 +185,7 @@ export function ClientDetailPage() {
               <Brief label="Active loan" value={client.activeLoan ?? 'None'} />
               <Brief label="Savings" value={savings ? formatMoney(savings.balance) : null} />
               <Brief label="Onboarded by" value={client.createdByName} />
+              <Brief label="Marketer" value={client.staffName} note={reassignedNote(client.staffAssignedByName, client.staffAssignedAt)} />
               <Brief label="Approved" value={client.activatedDate ? `${formatDate(client.activatedDate)}${client.activatedByName ? ` · ${client.activatedByName}` : ''}` : null} />
             </dl>
           </div>
@@ -454,13 +456,14 @@ export function ClientDetailPage() {
   );
 }
 
-function Brief({ label, value }: { label: string; value: string | null | undefined }) {
+function Brief({ label, value, note }: { label: string; value: string | null | undefined; note?: string | null }) {
   return (
     <div className="min-w-0">
       <dt className="text-xs text-slate-400">{label}</dt>
       <dd className="mt-0.5 truncate font-medium text-slate-800" title={value ?? undefined}>
         {value || '—'}
       </dd>
+      {note && <dd className="mt-0.5 truncate text-xs text-slate-500" title={note}>{note}</dd>}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { CheckCircle2Icon, ScanFaceIcon, ShieldCheckIcon, XCircleIcon } from 'lu
 import { biometricsApi, type ClientBiometrics, type FaceCapture } from '../../../../api/clientsApi';
 import { PassportPhoto } from '../../../../components/PassportPhoto';
 import { FaceCaptureModal } from '../../../../components/FaceCaptureModal';
+import { PassportPhotoUploadButton } from '../../../../components/PassportPhotoUploadButton';
 
 function formatDateTime(value: string | null): string {
   return value ? new Date(value).toLocaleString('en-NG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
@@ -50,7 +51,7 @@ export function BiometricsSection({ clientId, clientName, onEnrolled }: { client
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-5 rounded-xl border border-gray-100 p-5 sm:flex-row sm:items-center">
-        <PassportPhoto clientId={clientId} name={clientName} hasPhoto={biometrics.enrolled} version={photoVersion} className="h-32 w-28" />
+        <PassportPhoto clientId={clientId} name={clientName} hasPhoto={biometrics.hasPhoto} version={photoVersion} className="h-32 w-28" />
         <div className="flex-1 space-y-2">
           <div className="flex items-center gap-2">
             {biometrics.enrolled ? (
@@ -70,7 +71,7 @@ export function BiometricsSection({ clientId, clientName, onEnrolled }: { client
             <p className="text-sm text-gray-600">
               {biometrics.required
                 ? `Capture the client's face with a live camera check — it's needed before they can be approved or take a loan. It becomes their profile picture, and before any loan is disbursed their face is matched against it (${biometrics.faceMatchThreshold}% similarity needed).`
-                : `Face capture is optional. A live camera check becomes the client's profile picture, and their face can be matched against it before a loan is disbursed (${biometrics.faceMatchThreshold}% similarity needed).`}
+                : `Face capture is optional. A live camera check becomes the client's profile picture, and their face can be matched against it before a loan is disbursed (${biometrics.faceMatchThreshold}% similarity needed). Or upload a passport photo just for the record — it isn't a face check.`}
             </p>
           )}
           {showFailure && (
@@ -83,6 +84,17 @@ export function BiometricsSection({ clientId, clientName, onEnrolled }: { client
           )}
           {!biometrics.canEnroll && biometrics.enrollBlockedReason && <p className="text-xs text-gray-400">{biometrics.enrollBlockedReason}</p>}
         </div>
+        {biometrics.canUploadPhoto && (
+          <PassportPhotoUploadButton
+            clientId={clientId}
+            hasPhoto={biometrics.hasPhoto}
+            onUploaded={() => {
+              void load();
+              setPhotoVersion((v) => v + 1);
+              onEnrolled();
+            }}
+          />
+        )}
         {biometrics.canEnroll && (
           <button
             onClick={() => setCapturing(true)}
