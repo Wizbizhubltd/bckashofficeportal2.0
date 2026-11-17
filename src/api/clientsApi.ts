@@ -77,6 +77,9 @@ export interface ClientDetail {
   closedReason: string | null;
   createdById: number | null;
   createdByName: string | null;
+  /** Who last reassigned it to another marketer, and when — null if it's never been reassigned. */
+  staffAssignedByName: string | null;
+  staffAssignedAt: string | null;
   createdAt: string | null;
   activatedByName: string | null;
   bvnVerifiedAt: string | null;
@@ -189,7 +192,8 @@ export interface OnboardClientInput {
   email: string | null;
   phone: string | null;
   bvn: string;
-  bvnVerificationId: number;
+  /** Null onboards the client unverified — allowed only while BVN verification is switched off. */
+  bvnVerificationId: number | null;
   detailsSource: 'bvn' | 'client' | null;
   overrideReason: string | null;
 }
@@ -235,6 +239,11 @@ export interface GroupSummary {
   canRequestDeletion: boolean;
   pendingDeletionRequest: boolean;
   createdByName: string | null;
+  /** The marketer in charge of the group now. */
+  staffName: string | null;
+  /** Who last reassigned it to another marketer, and when — null if it's never been reassigned. */
+  staffAssignedByName: string | null;
+  staffAssignedAt: string | null;
   officeName: string | null;
   loanRecords: GroupLoanRecord[];
 }
@@ -276,6 +285,10 @@ export interface ClientBiometrics {
   required: boolean;
   enrollBlockedReason: string | null;
   captures: FaceCapture[];
+  /** Whether the client has a profile picture — their enrolled face, or a passport photo uploaded while face capture is off. */
+  hasPhoto: boolean;
+  /** Whether the signed-in user can upload a passport photo now: face capture is off, the face isn't enrolled, and they may document the client. */
+  canUploadPhoto: boolean;
 }
 
 export interface LoanFaceCheck {
@@ -388,6 +401,13 @@ export const clientsApi = {
     }
   },
 
+  /** Uploads (or replaces) the client's passport photo — only while face capture is off and their face isn't enrolled. JPG or PNG, at most 2 MB. */
+  async uploadPassportPhoto(clientId: number, file: File): Promise<void> {
+    const body = new FormData();
+    body.append('file', file);
+    await apiClient.post(`/clients/${clientId}/passport-photo`, body, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+
   async uploadContactPhoto(clientId: number, kind: 'guarantors' | 'references', contactId: number, file: File): Promise<ClientContact> {
     const body = new FormData();
     body.append('file', file);
@@ -433,6 +453,11 @@ export const clientsApi = {
 
   async requestDeletion(id: number, reason: string): Promise<void> {
     await apiClient.post(`/clients/${id}/deletion-requests`, { reason });
+  },
+
+  /** Whether onboarding needs each client's BVN verified (control portal → Settings → Customer Onboarding). */
+  async onboardingRules(): Promise<{ bvnVerificationRequired: boolean }> {
+    return (await apiClient.get<{ bvnVerificationRequired: boolean }>('/onboarding/rules')).data;
   },
 
   async checkBvn(bvn: string, fullName: string, phone: string | null): Promise<BvnCheck> {

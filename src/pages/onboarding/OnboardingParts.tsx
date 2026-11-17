@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { AlertTriangleIcon, CheckCircle2Icon, CheckIcon, LoaderIcon, RefreshCwIcon, ShieldAlertIcon, XCircleIcon } from 'lucide-react';
+import { AlertTriangleIcon, CheckCircle2Icon, CheckIcon, LoaderIcon, RefreshCwIcon, ShieldAlertIcon, ShieldCheckIcon, XCircleIcon } from 'lucide-react';
 import type { BvnCheck, OnboardClientInput } from '../../api/clientsApi';
 import { PHONE_MAX_DIGITS, sanitizePhoneInput } from '../../utils/phone';
 
@@ -37,9 +37,14 @@ export function detailsProblem(draft: DraftClient): string | null {
   return null;
 }
 
-/** Verified, and — when the BVN record differed — a choice made (with a reason, if keeping the client's details). */
-export function isReady(draft: DraftClient): boolean {
-  if (!draft.check) return false;
+/**
+ * Verified, and — when the BVN record differed — a choice made (with a reason, if keeping the client's details).
+ * While BVN verification is switched off (`verificationRequired` false), a client not verified is ready too:
+ * they're onboarded unverified. A check that did come back still needs its choice made.
+ */
+export function isReady(draft: DraftClient, verificationRequired = true): boolean {
+  if (draft.checking) return false;
+  if (!draft.check) return !verificationRequired;
   if (draft.check.matches) return true;
   return draft.source === 'bvn' || (draft.source === 'client' && draft.reason.trim().length > 0);
 }
@@ -51,7 +56,7 @@ export function toInput(draft: DraftClient): OnboardClientInput {
     email: draft.email.trim() || null,
     phone: draft.phone || null,
     bvn: draft.bvn,
-    bvnVerificationId: draft.check!.verificationId,
+    bvnVerificationId: draft.check?.verificationId ?? null,
     detailsSource: matches ? null : draft.source,
     overrideReason: !matches && draft.source === 'client' ? draft.reason.trim() : null,
   };
@@ -181,10 +186,13 @@ export function BvnVerificationCard({
   onRetry,
   onChoose,
   onReason,
+  optional = false,
 }: {
   draft: DraftClient;
   heading: string;
   badge?: string;
+  /** BVN verification is switched off: the check is offered, not run automatically, and onboarding doesn't wait on it. */
+  optional?: boolean;
   onRetry: () => void;
   onChoose: (source: 'bvn' | 'client') => void;
   onReason: (reason: string) => void;
@@ -198,7 +206,9 @@ export function BvnVerificationCard({
         ? { tone: 'bg-green-50 text-green-700', icon: <CheckCircle2Icon size={14} />, label: 'Verified — details match' }
         : check
           ? { tone: 'bg-amber-50 text-amber-800', icon: <AlertTriangleIcon size={14} />, label: 'Details differ from BVN' }
-          : { tone: 'bg-gray-100 text-gray-500', icon: null, label: 'Not checked yet' };
+          : optional
+            ? { tone: 'bg-gray-100 text-gray-600', icon: null, label: 'Not verified — optional' }
+            : { tone: 'bg-gray-100 text-gray-500', icon: null, label: 'Not checked yet' };
 
   return (
     <section className={`rounded-xl border bg-white p-5 ${draft.serverError ? 'border-red-200' : check && !check.matches ? 'border-amber-200' : 'border-gray-100'}`}>
@@ -224,9 +234,18 @@ export function BvnVerificationCard({
         </p>
       )}
 
+      {optional && !check && !draft.checking && !draft.checkError && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          BVN verification is optional. Onboard without it, or verify the BVN now — it can also be verified later from the client's record.
+          <button type="button" onClick={onRetry} className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline">
+            <ShieldCheckIcon size={14} /> Verify now
+          </button>
+        </div>
+      )}
+
       {draft.checkError && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
-          {draft.checkError}
+          {optional ? `${draft.checkError} You can still onboard the client unverified.` : draft.checkError}
           <button type="button" onClick={onRetry} className="inline-flex items-center gap-1.5 font-medium hover:underline">
             <RefreshCwIcon size={14} /> Check again
           </button>

@@ -6,7 +6,7 @@ import { clientsApi, onboardingErrors } from '../../api/clientsApi';
 import { useRolePath } from '../../hooks/useRolePath';
 import { useScopedOffices } from '../../hooks/useScopedOffices';
 import { BvnVerificationCard, ClientDetailsFields, Stepper, detailsProblem, isReady, toInput } from './OnboardingParts';
-import { useOnboardingDrafts } from './useOnboardingDrafts';
+import { useBvnVerificationRequired, useOnboardingDrafts } from './useOnboardingDrafts';
 import { OfficeField } from './OfficeField';
 
 const STEPS = ['Client details', 'Verification'];
@@ -16,6 +16,8 @@ export function SingleOnboardingPage() {
   const navigate = useNavigate();
   const rolePath = useRolePath();
   const offices = useScopedOffices();
+  const bvnRequired = useBvnVerificationRequired();
+  const verificationRequired = bvnRequired !== false;
   const clients = useOnboardingDrafts(1);
   const draft = clients.drafts[0];
   const [step, setStep] = useState(0);
@@ -28,9 +30,10 @@ export function SingleOnboardingPage() {
   }, [offices]);
 
   useEffect(() => {
-    if (step === 1) void clients.verifyPending();
+    // While BVN verification is optional, nothing is checked unless the staff member asks.
+    if (step === 1 && verificationRequired) void clients.verifyPending();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, verificationRequired]);
 
   const officeMissing = offices.length > 1 && !officeId;
 
@@ -69,7 +72,7 @@ export function SingleOnboardingPage() {
         </span>
         <div>
           <h1 className="font-heading text-xl font-bold text-primary">Onboard a client</h1>
-          <p className="text-sm text-gray-500">Their BVN is verified before they're added. You'll add documents from their client page afterwards.</p>
+          <p className="text-sm text-gray-500">{verificationRequired ? "Their BVN is verified before they're added." : 'BVN verification is optional.'} You'll add documents from their client page afterwards.</p>
         </div>
       </div>
 
@@ -86,6 +89,7 @@ export function SingleOnboardingPage() {
         <BvnVerificationCard
           draft={draft}
           heading="BVN verification"
+          optional={!verificationRequired}
           onRetry={() => void clients.verify(draft)}
           onChoose={(source) => clients.choose(draft.key, source)}
           onReason={(reason) => clients.setReason(draft.key, reason)}
@@ -110,7 +114,7 @@ export function SingleOnboardingPage() {
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={!isReady(draft) || submitting}
+            disabled={!isReady(draft, verificationRequired) || bvnRequired === null || submitting}
             className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2 text-sm font-heading font-bold text-white hover:bg-accent/90 disabled:opacity-50"
           >
             {submitting && <LoaderIcon size={16} className="animate-spin" />}

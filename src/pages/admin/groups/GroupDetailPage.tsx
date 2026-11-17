@@ -21,7 +21,7 @@ import { CLIENT_CREATOR_ROLES, type OfficeRole } from '../../../config/roles';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { formatMoney, formatMoneyCompact } from '../../../utils/money';
-import { humanize, initials } from '../../../utils/format';
+import { humanize, initials, reassignedNote } from '../../../utils/format';
 import { StatCard } from '../../dashboard/DashboardKit';
 
 interface GroupProfile {
@@ -121,7 +121,6 @@ export function GroupDetailPage() {
               <p className="mt-1 text-sm text-slate-500">
                 {group.accountNo ? `A/C ${group.accountNo} · ` : ''}
                 {summary.officeName ?? 'No office'}
-                {summary.createdByName ? ` · onboarded by ${summary.createdByName}` : ''}
               </p>
             </div>
           </div>
@@ -157,11 +156,13 @@ export function GroupDetailPage() {
         {group.status === 'Pending' && (
           <p className="mt-4 flex items-center gap-2 rounded-lg bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
             <HourglassIcon size={16} />
-            Awaiting approval — the group is approved automatically once all {summary.totalMembers} members are ({summary.approvedMembers} so far).
+            Awaiting approval — the group is approved automatically once all {summary.totalMembers} members are ({summary.approvedMembers} so far) are approved.
           </p>
         )}
 
-        <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 text-sm md:grid-cols-4">
+        <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 text-sm md:grid-cols-3 lg:grid-cols-6">
+          <Brief label="Onboarded by" value={summary.createdByName} />
+          <Brief label="Marketer" value={summary.staffName} note={reassignedNote(summary.staffAssignedByName, summary.staffAssignedAt)} />
           <Brief label="Phone" value={group.mobile ?? group.phone} />
           <Brief label="Email" value={group.email} />
           <Brief label="Meeting address" value={group.address} />
@@ -329,11 +330,14 @@ export function GroupDetailPage() {
   );
 }
 
-function Brief({ label, value }: { label: string; value: string | null | undefined }) {
+function Brief({ label, value, note }: { label: string; value: string | null | undefined; note?: string | null }) {
   return (
     <div className="min-w-0">
       <dt className="text-xs text-slate-400">{label}</dt>
-      <dd className="mt-0.5 truncate font-medium text-slate-800">{value || '—'}</dd>
+      <dd className="mt-0.5 truncate font-medium text-slate-800" title={value ?? undefined}>
+        {value || '—'}
+      </dd>
+      {note && <dd className="mt-0.5 truncate text-xs text-slate-500" title={note}>{note}</dd>}
     </div>
   );
 }
