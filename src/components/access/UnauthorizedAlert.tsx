@@ -26,7 +26,7 @@ export function UnauthorizedAlert() {
       <button
         type="button"
         onClick={() => navigate(location.pathname + location.search, { replace: true, state: null })}
-        className="rounded p-1 text-red-500 hover:bg-red-100"
+        className="inline-flex h-10 w-10 items-center justify-center rounded text-red-500 hover:bg-red-100 sm:h-auto sm:w-auto sm:p-1"
         aria-label="Dismiss"
       >
         <XIcon size={16} />

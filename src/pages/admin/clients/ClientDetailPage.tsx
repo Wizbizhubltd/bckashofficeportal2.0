@@ -34,6 +34,7 @@ import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { PassportPhoto } from '../../../components/PassportPhoto';
 import { DownloadFormButton } from '../../../components/DownloadFormButton';
 import { SimpleCrudScreen } from '../SimpleCrudScreen';
+import { NextOfKinSection } from './sections/NextOfKinSection';
 import { DocumentsSection } from './sections/DocumentsSection';
 import { BiometricsSection } from './sections/BiometricsSection';
 import { ContactsSection } from './sections/ContactsSection';
@@ -593,28 +594,7 @@ function OverviewTab({ client, onEnrolled, onChanged }: { client: ClientDetail; 
         {(section === 'guarantors' || section === 'references') && (
           <ContactsSection key={section} clientId={client.id} kind={section} readOnly={readOnly} onChange={onEnrolled} />
         )}
-        {section === 'next-of-kin' && (
-          <SimpleCrudScreen<{ id: number; clientRelationshipId: number | null; firstName: string | null; lastName: string | null; mobile: string | null; email: string | null; notes: string | null }>
-            key={section}
-            title="Next of kin"
-            endpoint={`/clients/${client.id}/next-of-kin`}
-            readOnly={readOnly}
-            columns={[
-              { key: 'firstName', label: 'First Name' },
-              { key: 'lastName', label: 'Last Name' },
-              { key: 'mobile', label: 'Mobile' },
-            ]}
-            fields={[
-              { key: 'clientRelationshipId', label: 'Relationship Type ID', type: 'number' },
-              { key: 'firstName', label: 'First Name', type: 'text' },
-              { key: 'lastName', label: 'Last Name', type: 'text' },
-              { key: 'mobile', label: 'Mobile', type: 'tel' },
-              { key: 'email', label: 'Email', type: 'text' },
-              { key: 'notes', label: 'Notes', type: 'textarea' },
-            ]}
-            emptyItem={{ clientRelationshipId: null, firstName: '', lastName: '', mobile: '', email: '', notes: '' }}
-          />
-        )}
+        {section === 'next-of-kin' && <NextOfKinSection key={section} clientId={client.id} readOnly={readOnly} />}
         {section === 'notes' && (
           <SimpleCrudScreen<{ id: number; notes: string | null }>
             title="Notes"

@@ -11,7 +11,11 @@ export interface CrudField<T> {
   // the primary key, and modalItem's type (T | Omit<T, 'id'>) only guarantees these keys.
   key: keyof Omit<T, 'id'>;
   label: string;
-  type: 'text' | 'number' | 'checkbox' | 'textarea' | 'tel';
+  type: 'text' | 'number' | 'checkbox' | 'textarea' | 'tel' | 'select';
+  /** For 'select': the choices. A numeric value is sent to the API as a number. */
+  options?: { value: number | string; label: string }[];
+  /** For 'select': the empty first choice, e.g. "Choose a relationship". */
+  placeholder?: string;
 }
 
 export interface CrudColumn<T> {
@@ -189,8 +193,11 @@ export function SimpleCrudScreen<T extends { id: number }>({
       </div>
 
       {modalItem && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        // The overlay itself scrolls (and pads for the on-screen keyboard — see keepFocusedFieldVisible),
+        // so on a phone every field can be reached instead of sliding under the keyboard.
+        <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/40" role="dialog" aria-modal="true">
+          <div className="modal-scroll flex min-h-full items-start justify-center p-4 sm:items-center">
+          <div className="my-4 w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-heading font-bold text-primary">
                 {isEditing ? `Edit ${title.replace(/s$/, '')}` : `Add ${title.replace(/s$/, '')}`}
@@ -223,6 +230,22 @@ export function SimpleCrudScreen<T extends { id: number }>({
                           className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                           rows={3}
                         />
+                      ) : field.type === 'select' ? (
+                        <select
+                          value={String(modalItem[field.key] ?? '')}
+                          onChange={(e) => {
+                            const chosen = field.options?.find((o) => String(o.value) === e.target.value);
+                            setModalItem({ ...modalItem, [field.key]: chosen ? chosen.value : null });
+                          }}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-300 bg-white focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                        >
+                          <option value="">{field.placeholder ?? 'Choose…'}</option>
+                          {(field.options ?? []).map((o) => (
+                            <option key={String(o.value)} value={String(o.value)}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
                       ) : field.type === 'tel' ? (
                         <input
                           type="tel"
@@ -268,6 +291,7 @@ export function SimpleCrudScreen<T extends { id: number }>({
                 {saving ? 'Saving…' : 'Save'}
               </button>
             </div>
+          </div>
           </div>
         </div>
       )}

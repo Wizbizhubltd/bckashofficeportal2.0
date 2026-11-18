@@ -22,7 +22,7 @@ export function Pagination({ page, pageSize, totalCount, onPageChange }: Paginat
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed sm:h-8 sm:w-8"
           aria-label="Previous page"
         >
           <ChevronLeftIcon size={16} />
@@ -33,7 +33,7 @@ export function Pagination({ page, pageSize, totalCount, onPageChange }: Paginat
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="p-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed sm:h-8 sm:w-8"
           aria-label="Next page"
         >
           <ChevronRightIcon size={16} />

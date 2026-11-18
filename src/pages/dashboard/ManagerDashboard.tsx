@@ -43,7 +43,7 @@ export function ManagerDashboard() {
       {summary.status === 'error' ? (
         <SectionError message="Couldn't load the dashboard figures." onRetry={reload} />
       ) : (
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           {staff && <StaffStat summary={summary} />}
           {clients && <ClientsStat summary={summary} />}
           {loans && <PendingApplicationsStat summary={summary} />}
