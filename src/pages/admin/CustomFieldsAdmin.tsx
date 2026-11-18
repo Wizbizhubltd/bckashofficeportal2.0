@@ -137,7 +137,7 @@ export function CustomFieldsAdmin() {
         <div>
           <h1 className="text-xl font-heading font-bold text-primary">Custom Fields</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Admin-defined fields for data not covered by standard columns (BR-ORG-6). Use the flask icon to capture a
+            Admin-defined fields for data not covered by standard columns. Use the flask icon to capture a
             test value and confirm the field type validates correctly.
           </p>
         </div>

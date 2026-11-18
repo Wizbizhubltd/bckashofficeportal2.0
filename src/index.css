@@ -12,3 +12,27 @@
 @import 'tailwindcss/utilities';
 
 /* END TAILWIND IMPORTS — ALL OTHER CSS MUST GO BELOW THIS LINE */
+
+/* ── Phones ───────────────────────────────────────────────────────────────
+   Staff use the portal on their phones in the field (onboarding, documentation), so: */
+@media (max-width: 767px) {
+  /* iOS Safari zooms the whole page into any field whose text is under 16px, and doesn't zoom back
+     out — which made filling in forms on an iPhone a constant pinch-and-scroll. */
+  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  /* A table wider than the phone scrolls sideways inside its card, rather than its right-hand
+     columns being cut off by the card's overflow-hidden (status, office, actions were simply
+     invisible). Cells stay on one line so they don't squeeze into tall, narrow columns. */
+  main div:has(> table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  main table th,
+  main table td {
+    white-space: nowrap;
+  }
+}

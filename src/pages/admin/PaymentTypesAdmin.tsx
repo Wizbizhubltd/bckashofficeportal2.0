@@ -11,7 +11,7 @@ export function PaymentTypesAdmin() {
   return (
     <SimpleCrudScreen<PaymentType>
       title="Payment Types"
-      description="Cash, cheque, bank transfer, etc. (BR-ORG-4). Non-cash transactions capture payment detail records (account/cheque/routing/receipt) at the point of entry in later phases."
+      description="Cash, cheque, bank transfer, etc.. Non-cash transactions capture payment detail records (account/cheque/routing/receipt) at the point of entry in later phases."
       endpoint="/payment-types"
       columns={[
         { key: 'name', label: 'Name' },

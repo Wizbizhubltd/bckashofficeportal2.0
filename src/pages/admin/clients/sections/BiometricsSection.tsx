@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle2Icon, ScanFaceIcon, ShieldCheckIcon, XCircleIcon } from 'lucide-react';
 import { biometricsApi, type ClientBiometrics, type FaceCapture } from '../../../../api/clientsApi';
 import { PassportPhoto } from '../../../../components/PassportPhoto';
-import { FaceCaptureModal } from '../../../../components/FaceCaptureModal';
+import { FaceCaptureModal } from '../../../../components/LazyFaceCaptureModal';
 import { PassportPhotoUploadButton } from '../../../../components/PassportPhotoUploadButton';
 
 function formatDateTime(value: string | null): string {

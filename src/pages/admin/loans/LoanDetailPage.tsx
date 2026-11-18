@@ -336,7 +336,7 @@ export function LoanDetailPage() {
       {section === 'charges' && (
         <SimpleCrudScreen<LoanCharge>
           title="Loan Charges"
-          description="Loan-level charges (BR-LN-6). Amount is entered directly, not auto-calculated from the schedule."
+          description="Loan-level charges. Amount is entered directly, not auto-calculated from the schedule."
           endpoint={`/loans/${loanId}/charges`}
           columns={[
             { key: 'chargeType', label: 'Type' },
@@ -366,7 +366,7 @@ export function LoanDetailPage() {
         onClose={() => setShowRequestChanges(false)}
         onConfirm={(reason) => void handleRequestChanges(reason)}
         title="Request changes"
-        description="This loan will move to Need Changes, sending it back to the loan officer to revise terms (FR-LN-7)."
+        description="This loan will move to Need Changes, sending it back to the loan officer to revise terms."
         inputType="textarea"
         inputLabel="Reason"
         requireInput
@@ -379,7 +379,7 @@ export function LoanDetailPage() {
         onClose={() => setShowWriteOff(false)}
         onConfirm={(reason) => void handleWriteOff(reason)}
         title="Write off this loan?"
-        description="All outstanding principal, interest, fees, and penalty will be moved out of the active portfolio (FR-LN-24)."
+        description="All outstanding principal, interest, fees, and penalty will be moved out of the active portfolio."
         inputType="textarea"
         inputLabel="Reason"
         requireInput
@@ -439,7 +439,7 @@ export function LoanDetailPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h2 className="text-lg font-heading font-bold text-primary mb-2">Request Reschedule</h2>
             <p className="text-xs text-gray-500 mb-4">
-              Creates a pending request (FR-LN-23) — approving it (from the Reschedule Requests list) regenerates the schedule from the reschedule-from date forward.
+              Creates a pending request — approving it (from the Reschedule Requests list) regenerates the schedule from the reschedule-from date forward.
             </p>
             <div className="space-y-4">
               <div>

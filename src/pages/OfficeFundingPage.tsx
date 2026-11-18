@@ -5,6 +5,7 @@ import { CheckCircle2Icon, FileTextIcon, LoaderIcon, ShieldAlertIcon, XIcon } fr
 import apiClient from '../api/apiClient';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { formatMoney } from '../utils/money';
+import { compressImage, DOCUMENT_MAX_DIMENSION } from '../utils/compressImage';
 
 type Status = 'PendingAcknowledgement' | 'Acknowledged' | 'Disputed' | 'Cancelled';
 
@@ -35,7 +36,7 @@ const STATUS: Record<Status, { label: string; className: string }> = {
   Cancelled: { label: 'Cancelled', className: 'bg-gray-50 text-gray-500 border-gray-200' },
 };
 
-const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_BYTES = 2 * 1024 * 1024;
 const when = (value: string | null) => (value ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 async function openStatement(fundingId: number) {
@@ -54,7 +55,7 @@ function DisputeModal({ funding, onClose, onDone }: { funding: Funding | null; o
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const fileProblem = file && file.size > MAX_BYTES ? 'The bank statement must be 10 MB or smaller.' : null;
+  const fileProblem = file && file.size > MAX_BYTES ? `That file is ${(file.size / 1024 / 1024).toFixed(1)} MB — the bank statement must be 2 MB or smaller.` : null;
   const ready = reason.trim().length >= 10 && !!file && !fileProblem;
 
   const submit = async (event: FormEvent) => {
@@ -109,10 +110,14 @@ function DisputeModal({ funding, onClose, onDone }: { funding: Funding | null; o
               <input
                 type="file"
                 accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                onChange={async (e) => {
+                  const picked = e.target.files?.[0] ?? null;
+                  // A photographed statement is shrunk on the device first; a PDF goes as it is.
+                  setFile(picked ? await compressImage(picked, DOCUMENT_MAX_DIMENSION) : null);
+                }}
                 className="block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:text-sm"
               />
-              <span className={`block text-xs mt-1 ${fileProblem ? 'text-red-600' : 'text-gray-500'}`}>{fileProblem ?? 'PDF, JPG or PNG, up to 10 MB.'}</span>
+              <span className={`block text-xs mt-1 ${fileProblem ? 'text-red-600' : 'text-gray-500'}`}>{fileProblem ?? 'PDF, JPG or PNG, up to 2 MB.'}</span>
             </label>
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">

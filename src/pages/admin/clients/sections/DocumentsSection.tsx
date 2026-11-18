@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import toast from 'react-hot-toast';
 import { CheckCircle2Icon, DownloadIcon, FileTextIcon, IdCardIcon, LoaderIcon, ReceiptIcon, UploadIcon, XIcon, type LucideIcon } from 'lucide-react';
 import apiClient from '../../../../api/apiClient';
+import { compressImage, DOCUMENT_MAX_DIMENSION } from '../../../../utils/compressImage';
 
 type Category = 'nin_slip' | 'utility_bill' | 'id_card';
 type IdType = 'drivers_license' | 'international_passport' | 'voters_card';
@@ -197,13 +198,15 @@ function UploadModal({
   const fileInput = useRef<HTMLInputElement>(null);
   const isId = slot.category === 'id_card';
 
-  const chooseFile = (chosen: File | undefined) => {
+  const chooseFile = async (picked: File | undefined) => {
     setError(null);
-    if (!chosen) return;
-    if (!/\.(jpe?g|png|pdf)$/i.test(chosen.name)) {
+    if (!picked) return;
+    if (!/\.(jpe?g|png|pdf)$/i.test(picked.name)) {
       setError('Choose a picture (JPG or PNG) or a PDF.');
       return;
     }
+    // Pictures are shrunk on the device first, so a big phone photo of a document still fits.
+    const chosen = await compressImage(picked, DOCUMENT_MAX_DIMENSION);
     if (chosen.size > MAX_BYTES) {
       setError(`That file is ${(chosen.size / 1024 / 1024).toFixed(1)} MB — the limit is 2 MB.`);
       if (fileInput.current) fileInput.current.value = '';
@@ -290,7 +293,7 @@ function UploadModal({
                 <label className="flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-gray-200 px-4 py-4 text-sm text-gray-500 hover:border-primary/40">
                   <UploadIcon size={18} className="text-gray-400" />
                   <span className="min-w-0 flex-1 truncate">{file ? `${file.name} · ${formatSize(String(file.size))}` : 'Choose a picture or PDF (max 2 MB)'}</span>
-                  <input ref={fileInput} type="file" accept={ACCEPT} className="hidden" onChange={(e) => chooseFile(e.target.files?.[0])} />
+                  <input ref={fileInput} type="file" accept={ACCEPT} className="hidden" onChange={(e) => void chooseFile(e.target.files?.[0])} />
                 </label>
               </div>
             </>

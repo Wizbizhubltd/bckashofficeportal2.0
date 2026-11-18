@@ -60,7 +60,7 @@ export function ForgotPassword() {
 
     try {
       await sendCode();
-      setNotice('A new code has been sent. Codes sent earlier will no longer work.');
+      setNotice('A new code has been sent. If the earlier code arrives first, you can use that one too.');
     } catch (resendError) {
       setError(resendError instanceof Error ? resendError.message : 'Could not resend the code. Please try again.');
     } finally {
@@ -135,7 +135,7 @@ export function ForgotPassword() {
             </label>
             <div className="relative">
               <MailIcon size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
+              <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
                 id="email"
                 type="email"
                 autoComplete="username"
@@ -183,7 +183,7 @@ export function ForgotPassword() {
             <label htmlFor="newPassword" className="mb-1.5 block text-sm font-medium text-slate-700">
               New password
             </label>
-            <PasswordInput
+            <PasswordInput autoCapitalize="none" autoCorrect="off" spellCheck={false}
               id="newPassword"
               autoComplete="new-password"
               placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
@@ -200,7 +200,7 @@ export function ForgotPassword() {
             <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium text-slate-700">
               Confirm new password
             </label>
-            <PasswordInput
+            <PasswordInput autoCapitalize="none" autoCorrect="off" spellCheck={false}
               id="confirmPassword"
               autoComplete="new-password"
               placeholder="Re-enter the new password"

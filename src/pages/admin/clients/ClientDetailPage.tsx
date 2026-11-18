@@ -32,6 +32,7 @@ import { StatusBadge } from '../../../components/StatusBadge';
 import { VerifyBvnModal } from '../../../components/VerifyBvnModal';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import { PassportPhoto } from '../../../components/PassportPhoto';
+import { DownloadFormButton } from '../../../components/DownloadFormButton';
 import { SimpleCrudScreen } from '../SimpleCrudScreen';
 import { DocumentsSection } from './sections/DocumentsSection';
 import { BiometricsSection } from './sections/BiometricsSection';
@@ -330,6 +331,7 @@ export function ClientDetailPage() {
           >
             <PrinterIcon size={16} /> Print data page
           </a>
+          <DownloadFormButton printPath={rolePath(`/clients/${client.id}/print`)} className={`${buttonClass} border border-gray-200 text-gray-700 hover:bg-gray-50`} />
         </div>
       </section>
 
@@ -501,7 +503,7 @@ function OverviewTab({ client, onEnrolled, onChanged }: { client: ClientDetail; 
     <div className="space-y-8">
       <section>
         <h2 className="mb-4 text-xs font-heading font-bold uppercase tracking-widest text-gray-400">Personal details</h2>
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:gap-x-6 lg:grid-cols-4">
           <Detail label="First name" value={client.firstName} />
           <Detail label="Middle name" value={client.middleName} />
           <Detail label="Last name" value={client.lastName} />
@@ -529,7 +531,7 @@ function OverviewTab({ client, onEnrolled, onChanged }: { client: ClientDetail; 
 
       <section>
         <h2 className="mb-4 text-xs font-heading font-bold uppercase tracking-widest text-gray-400">BVN verification & risk</h2>
-        <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-4 sm:gap-x-6 lg:grid-cols-4">
           <Detail label="BVN" value={client.bvn} />
           <Detail
             label="Verified"

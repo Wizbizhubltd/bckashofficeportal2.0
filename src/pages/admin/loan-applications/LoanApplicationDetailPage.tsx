@@ -214,7 +214,7 @@ export function LoanApplicationDetailPage() {
       {section === 'guarantors' && (
         <SimpleCrudScreen<Guarantor>
           title="Guarantors"
-          description="Guarantors on this application (FR-LN-21)."
+          description="Guarantors on this application."
           endpoint={`/loan-applications/${applicationId}/guarantors`}
           columns={[
             { key: 'firstName', label: 'First Name' },
@@ -237,7 +237,7 @@ export function LoanApplicationDetailPage() {
       {section === 'collateral' && (
         <SimpleCrudScreen<Collateral>
           title="Collateral"
-          description="Collateral items on this application (FR-LN-22)."
+          description="Collateral items on this application."
           endpoint={`/loan-applications/${applicationId}/collateral`}
           columns={[
             { key: 'name', label: 'Name' },

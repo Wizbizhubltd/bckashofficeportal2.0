@@ -9,7 +9,7 @@ export function LoanPurposesAdmin() {
   return (
     <SimpleCrudScreen<LoanPurpose>
       title="Loan Purposes"
-      description="Purpose options available on a loan application (BR-LN-2)."
+      description="Purpose options available on a loan application."
       endpoint="/loan-purposes"
       columns={[{ key: 'name', label: 'Name' }]}
       fields={[{ key: 'name', label: 'Name', type: 'text' }]}
