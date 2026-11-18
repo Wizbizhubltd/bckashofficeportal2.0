@@ -127,7 +127,7 @@ export function ChargesAdmin() {
         <div>
           <h1 className="text-xl font-heading font-bold text-primary">Charges</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Fees and penalties scoped to loan/savings/shares/client (FR-ORG-5). Product/type/option combinations are
+            Fees and penalties scoped to loan/savings/shares/client. Product/type/option combinations are
             validated server-side.
           </p>
         </div>
@@ -260,7 +260,7 @@ export function ChargesAdmin() {
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => void handleDelete()}
         title="Deactivate this charge?"
-        description="Charges already in use on a product are deactivated, not deleted (FR-ORG-5)."
+        description="Charges already in use on a product are deactivated, not deleted."
         icon={<AlertTriangleIcon className="text-red-600" size={20} />}
         confirmLabel="Deactivate"
         confirmVariant="danger"

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ImageUpIcon, LoaderIcon } from 'lucide-react';
 import { clientsApi } from '../api/clientsApi';
+import { compressImage, PHOTO_MAX_DIMENSION } from '../utils/compressImage';
 
 const MAX_BYTES = 2 * 1024 * 1024;
 
@@ -13,14 +14,16 @@ export function PassportPhotoUploadButton({ clientId, hasPhoto, onUploaded }: { 
   const input = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
-  const upload = async (file: File | undefined) => {
-    if (!file) return;
-    if (!/\.(jpe?g|png)$/i.test(file.name)) {
+  const upload = async (picked: File | undefined) => {
+    if (!picked) return;
+    if (!/\.(jpe?g|png)$/i.test(picked.name)) {
       toast.error('Upload the passport photo as a JPG or PNG.');
       return;
     }
+    // Shrunk on the device first: smaller uploads, and a big phone photo still fits the limit.
+    const file = await compressImage(picked, PHOTO_MAX_DIMENSION);
     if (file.size > MAX_BYTES) {
-      toast.error('The photo must be 2 MB or smaller.');
+      toast.error(`That photo is ${(file.size / 1024 / 1024).toFixed(1)} MB — the limit is 2 MB.`);
       return;
     }
 
@@ -48,6 +51,7 @@ export function PassportPhotoUploadButton({ clientId, hasPhoto, onUploaded }: { 
       >
         {uploading ? <LoaderIcon size={18} className="animate-spin" /> : <ImageUpIcon size={18} />}
         {hasPhoto ? 'Replace passport photo' : 'Upload passport photo'}
+        <span className="text-xs font-normal text-gray-400">JPG/PNG · max 2 MB</span>
       </button>
     </>
   );

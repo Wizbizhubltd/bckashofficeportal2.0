@@ -6,6 +6,7 @@ import { ConfirmationModal } from '../../../../components/ConfirmationModal';
 import { ContactPhoto } from '../../../../components/ContactPhoto';
 import { clientsApi, type ClientContact as Contact } from '../../../../api/clientsApi';
 import { PHONE_MAX_DIGITS, sanitizePhoneInput, toLocalPhone } from '../../../../utils/phone';
+import { compressImage, PHOTO_MAX_DIMENSION } from '../../../../utils/compressImage';
 
 type Form = { fullName: string; phone: string; email: string; address: string; relationship: string; occupation: string; gender: string };
 
@@ -267,11 +268,22 @@ function ContactModal({
               className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-gray-200"
               type="file"
               accept="image/jpeg,image/png"
-              onChange={(e) => {
+              onChange={async (e) => {
+                const input = e.target;
+                const picked = input.files?.[0] ?? null;
+                // Shrunk on the device first, so a big phone photo still fits the limit.
+                const chosen = picked ? await compressImage(picked, PHOTO_MAX_DIMENSION) : null;
+                if (chosen && chosen.size > PHOTO_MAX_BYTES) {
+                  setError(`That photo is ${(chosen.size / 1024 / 1024).toFixed(1)} MB — the limit is 2 MB.`);
+                  setPhoto(null);
+                  input.value = '';
+                  return;
+                }
                 setError(null);
-                setPhoto(e.target.files?.[0] ?? null);
+                setPhoto(chosen);
               }}
             />
+            <span className="mt-1 block text-xs text-gray-500">JPG or PNG, max 2 MB.</span>
           </Field>
           <Field label="Email">
             <input className={inputClass} type="email" value={form.email} onChange={set('email')} />

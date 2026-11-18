@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2Icon, RefreshCwIcon, ScanFaceIcon, ShieldAlertIcon, XCircleIcon } from 'lucide-react';
 import { biometricsApi, type LoanFaceCheck } from '../../../../api/clientsApi';
-import { FaceCaptureModal } from '../../../../components/FaceCaptureModal';
+import { FaceCaptureModal } from '../../../../components/LazyFaceCaptureModal';
 
 /**
  * Before a loan is disbursed, everyone receiving money must pass a live face capture that matches

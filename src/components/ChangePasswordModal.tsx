@@ -91,7 +91,7 @@ export function ChangePasswordModal() {
               <label htmlFor="current-password" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Temporary password
               </label>
-              <PasswordInput
+              <PasswordInput autoCapitalize="none" autoCorrect="off" spellCheck={false}
                 id="current-password"
                 autoComplete="current-password"
                 placeholder="From your welcome email"
@@ -105,7 +105,7 @@ export function ChangePasswordModal() {
               <label htmlFor="new-password" className="mb-1.5 block text-sm font-medium text-slate-700">
                 New password
               </label>
-              <PasswordInput
+              <PasswordInput autoCapitalize="none" autoCorrect="off" spellCheck={false}
                 id="new-password"
                 autoComplete="new-password"
                 placeholder={`At least ${MIN_LENGTH} characters`}
@@ -118,7 +118,7 @@ export function ChangePasswordModal() {
               <label htmlFor="confirm-password" className="mb-1.5 block text-sm font-medium text-slate-700">
                 Confirm new password
               </label>
-              <PasswordInput
+              <PasswordInput autoCapitalize="none" autoCorrect="off" spellCheck={false}
                 id="confirm-password"
                 autoComplete="new-password"
                 placeholder="Re-enter the new password"

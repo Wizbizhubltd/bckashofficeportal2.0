@@ -94,10 +94,10 @@ export function GroupsListPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-heading font-bold text-primary">Groups</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage lending groups (BR-GRP-1).</p>
+          <p className="text-sm text-gray-500 mt-1">Manage lending groups.</p>
         </div>
         {CLIENT_CREATOR_ROLES.includes(userType as OfficeRole) && (
           <Link
@@ -145,7 +145,29 @@ export function GroupsListPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <table className="w-full text-sm">
+        {/* Phones: one tappable card per group. */}
+        <ul className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <li className="px-4 py-6 text-center text-sm text-gray-400">Loading…</li>
+          ) : items.length === 0 ? (
+            <li className="px-4 py-6 text-center text-sm text-gray-400">No groups found.</li>
+          ) : (
+            items.map((item) => (
+              <li key={item.id}>
+                <Link to={rolePath(`/groups/${item.id}`)} className="block px-4 py-3 active:bg-gray-50">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 font-medium text-gray-900">{item.name}</p>
+                    <StatusBadge status={item.status} />
+                  </div>
+                  <p className="mt-1 text-xs font-medium text-primary">{item.accountNo || `#${item.id}`}</p>
+                  <p className="mt-0.5 truncate text-xs text-gray-400">{officeName(item.officeId)}</p>
+                </Link>
+              </li>
+            ))
+          )}
+        </ul>
+
+        <table className="hidden w-full text-sm md:table">
           <thead className="bg-gray-50 text-left text-gray-500">
             <tr>
               <th className="px-4 py-3 font-medium">Account No.</th>

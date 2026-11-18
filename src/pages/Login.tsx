@@ -87,7 +87,7 @@ export function Login() {
           </label>
           <div className="relative">
             <MailIcon size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
+            <input autoCapitalize="none" autoCorrect="off" spellCheck={false}
               id="email"
               type="email"
               autoComplete="username"
@@ -109,7 +109,7 @@ export function Login() {
               Forgot password?
             </Link>
           </div>
-          <PasswordInput
+          <PasswordInput autoCapitalize="none" autoCorrect="off" spellCheck={false}
             id="password"
             autoComplete="current-password"
             placeholder="Enter your password"

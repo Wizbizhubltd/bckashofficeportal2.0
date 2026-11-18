@@ -67,7 +67,7 @@ export function SavingsProductsListPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-heading font-bold text-primary">Savings Products</h1>
-          <p className="text-sm text-gray-500 mt-1">Configurable savings products (BR-SAV-1). Deleting a product in use is blocked — deactivate instead.</p>
+          <p className="text-sm text-gray-500 mt-1">Configurable savings products. Deleting a product in use is blocked — deactivate instead.</p>
         </div>
         <Link
           to="/admin/savings-products/new"

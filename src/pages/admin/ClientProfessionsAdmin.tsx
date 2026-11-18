@@ -9,7 +9,7 @@ export function ClientProfessionsAdmin() {
   return (
     <SimpleCrudScreen<ClientProfession>
       title="Professions"
-      description="Client occupation/profession lookup values (FR-CLI-1)."
+      description="Client occupation/profession lookup values."
       endpoint="/client-professions"
       columns={[{ key: 'name', label: 'Name' }]}
       fields={[{ key: 'name', label: 'Name', type: 'text' }]}

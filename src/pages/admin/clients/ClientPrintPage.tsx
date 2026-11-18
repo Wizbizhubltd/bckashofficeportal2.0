@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { PrinterIcon } from 'lucide-react';
+import { formFileName, isFormDownload, reportFormFailure, saveFormAsPdf } from '../../../utils/clientPdf';
 import {
   clientsApi,
   GROUP_ROLE_LABELS,
@@ -59,6 +60,9 @@ interface Guarantor extends ClientContact {
  */
 export function ClientPrintPage() {
   const clientId = Number(useParams<{ id: string }>().id);
+  // Opened by "Download form": save as a PDF instead of opening the print dialog.
+  const [downloading] = useState(isFormDownload);
+  const article = useRef<HTMLElement>(null);
   const [client, setClient] = useState<ClientDetail | null>(null);
   const [groups, setGroups] = useState<ClientGroupMembership[]>([]);
   const [loanForm, setLoanForm] = useState<ClientLoanForm>(EMPTY_LOAN_FORM);
@@ -95,12 +99,18 @@ export function ClientPrintPage() {
         setReferences(rs);
         document.title = `${clientName(c)} — client data`;
         // Give the photo a moment to load before the print dialog opens.
-        setTimeout(() => window.print(), 800);
+        setTimeout(() => {
+          if (!downloading) window.print();
+          else if (article.current) void saveFormAsPdf(article.current, formFileName(clientName(c)));
+        }, 800);
       })
-      .catch(() => setFailed(true));
+      .catch(() => {
+        setFailed(true);
+        if (downloading) reportFormFailure("This client couldn't be loaded.");
+      });
 
     return () => photoUrls.forEach((url) => URL.revokeObjectURL(url));
-  }, [clientId]);
+  }, [clientId, downloading]);
 
   if (failed) return <p className="p-10 text-center text-gray-500">This client couldn't be loaded.</p>;
   if (!client) return <p className="p-10 text-center text-gray-400">Preparing the data page…</p>;
@@ -128,7 +138,10 @@ export function ClientPrintPage() {
         </button>
       </div>
 
-      <article className="mx-auto max-w-[210mm] bg-white p-[15mm] text-[13px] leading-tight text-gray-800 shadow print:max-w-none print:p-0 print:shadow-none">
+      <article
+        ref={article}
+        className={`mx-auto max-w-[210mm] bg-white text-[13px] leading-tight text-gray-800 print:max-w-none print:p-0 print:shadow-none ${downloading ? '' : 'p-[15mm] shadow'}`}
+      >
         <header className="flex items-center justify-between border-b-2 border-primary pb-4">
           <div className="rounded bg-primary px-3 py-2">
             <Logo width={120} height={40} />

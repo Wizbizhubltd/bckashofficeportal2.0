@@ -165,7 +165,7 @@ export function OfficesAdmin() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-heading font-bold text-primary">Offices</h1>
-          <p className="text-sm text-gray-500 mt-1">Branch/office hierarchy (BR-ORG-1). Deactivating an office in use requires confirmation.</p>
+          <p className="text-sm text-gray-500 mt-1">Branch/office hierarchy. Deactivating an office in use requires confirmation.</p>
         </div>
         <button
           onClick={() => setForm(EMPTY_FORM)}

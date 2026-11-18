@@ -15,7 +15,7 @@ export function CurrenciesAdmin() {
   return (
     <SimpleCrudScreen<Currency>
       title="Currencies"
-      description="Supported currencies, exchange rates, and decimal precision (BR-ORG-2)."
+      description="Supported currencies, exchange rates, and decimal precision."
       endpoint="/currencies"
       columns={[
         { key: 'name', label: 'Name' },

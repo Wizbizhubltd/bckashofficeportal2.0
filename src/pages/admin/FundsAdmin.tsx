@@ -9,7 +9,7 @@ export function FundsAdmin() {
   return (
     <SimpleCrudScreen<Fund>
       title="Funds"
-      description="Sources of lending capital that can be attached to loans and loan products (BR-ORG-3)."
+      description="Sources of lending capital that can be attached to loans and loan products."
       endpoint="/funds"
       columns={[{ key: 'name', label: 'Name' }]}
       fields={[{ key: 'name', label: 'Name', type: 'text' }]}

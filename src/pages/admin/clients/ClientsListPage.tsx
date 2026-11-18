@@ -115,23 +115,23 @@ export function ClientsListPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-heading font-bold text-primary">Clients</h1>
-          <p className="text-sm text-gray-500 mt-1">Search and manage client records (FR-CLI-5).</p>
+          <p className="text-sm text-gray-500 mt-1">Search and manage client records.</p>
         </div>
         {canAddClient && (
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
             <Link
               to={rolePath('/groups/onboard')}
-              className="flex items-center gap-2 border border-primary/30 text-primary hover:bg-primary/5 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+              className="flex items-center justify-center gap-2 border border-primary/30 text-primary hover:bg-primary/5 text-sm font-medium px-4 py-2.5 rounded-lg transition-colors whitespace-nowrap"
             >
               <UsersRoundIcon size={16} />
               Onboard group
             </Link>
             <Link
               to={rolePath('/clients/onboard')}
-              className="flex items-center gap-2 bg-accent hover:bg-[#e64a19] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+              className="flex items-center justify-center gap-2 bg-accent hover:bg-[#e64a19] text-white text-sm font-medium px-4 py-2.5 rounded-lg transition-colors whitespace-nowrap"
             >
               <PlusIcon size={16} />
               Onboard client
@@ -198,7 +198,37 @@ export function ClientsListPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-        <table className="w-full text-sm">
+        {/* Phones: one tappable card per client — a five-column table doesn't fit. */}
+        <ul className="divide-y divide-gray-100 md:hidden">
+          {loading ? (
+            <li className="px-4 py-6 text-center text-sm text-gray-400">Loading…</li>
+          ) : items.length === 0 ? (
+            <li className="px-4 py-6 text-center text-sm text-gray-400">No clients found.</li>
+          ) : (
+            items.map((item) => (
+              <li key={item.id}>
+                <Link to={rolePath(`/clients/${item.id}`)} className="block px-4 py-3 active:bg-gray-50">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 font-medium text-gray-900">{item.displayName || `${item.firstName ?? ''} ${item.lastName ?? ''}`.trim() || '—'}</p>
+                    <StatusBadge status={item.status} />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    <span className="font-medium text-primary">{item.accountNo ?? '—'}</span>
+                    {item.mobile ? ` · ${item.mobile}` : ''}
+                  </p>
+                  <p className="mt-0.5 truncate text-xs text-gray-400">{officeName(item.officeId)}</p>
+                  {item.isHighRisk && (
+                    <span className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-red-600">
+                      <ShieldAlertIcon size={13} /> High risk
+                    </span>
+                  )}
+                </Link>
+              </li>
+            ))
+          )}
+        </ul>
+
+        <table className="hidden w-full text-sm md:table">
           <thead className="bg-gray-50 text-left text-gray-500">
             <tr>
               <th className="px-4 py-3 font-medium">Account No.</th>
