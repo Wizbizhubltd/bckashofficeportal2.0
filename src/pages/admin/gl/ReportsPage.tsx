@@ -90,7 +90,7 @@ export function ReportsPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-xl font-heading font-bold text-primary">Financial Reports</h1>
-        <p className="text-sm text-gray-500 mt-1">FR-GL-7. Computed from approved, non-reversed journal entries. Cash flow is a simplified view — see docs/gl-posting-spec.md.</p>
+        <p className="text-sm text-gray-500 mt-1">Computed from approved, non-reversed journal entries. Cash flow is a simplified view — see docs/gl-posting-spec.md.</p>
       </div>
 
       <div className="flex items-center gap-2 mb-4 border-b border-gray-200">

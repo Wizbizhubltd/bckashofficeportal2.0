@@ -21,18 +21,59 @@
   input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']),
   select,
   textarea {
-    font-size: 16px;
+    /* !important: Tailwind's text-sm on the element is a class, which outranks these element selectors. */
+    font-size: 16px !important;
   }
 
   /* A table wider than the phone scrolls sideways inside its card, rather than its right-hand
      columns being cut off by the card's overflow-hidden (status, office, actions were simply
      invisible). Cells stay on one line so they don't squeeze into tall, narrow columns. */
   main div:has(> table) {
-    overflow-x: auto;
+    /* !important: the card's own overflow-hidden class otherwise wins, and the table stays cut off. */
+    overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
   }
   main table th,
   main table td {
     white-space: nowrap;
   }
+
+  /* Links and buttons in table rows (a name, a loan number, an edit icon) were 18–28px tall — hard to
+     hit with a thumb. Links get a taller tap area without making the rows any taller (the padding is
+     cancelled out by the negative margin); buttons are at least 40px square. */
+  main td a {
+    display: inline-block;
+    padding-block: 10px;
+    margin-block: -10px;
+  }
+  main td button,
+  main td a:has(> svg:only-child) {
+    /* !important: icon buttons carry their own small padding classes (p-1.5), which would otherwise win. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px !important;
+    min-width: 40px !important;
+    margin-block: 0;
+  }
+
+  /* Every other pop-up (confirmations, loan actions, forms…) is a fixed, centred overlay. On a phone
+     a tall one couldn't scroll, and the keyboard covered its lower fields: let the overlay scroll,
+     start the panel at the top, and leave room for the keyboard (see utils/keepFocusedFieldVisible). */
+  .fixed.inset-0.flex.items-center.justify-center {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    align-items: flex-start !important;
+    padding-bottom: calc(1rem + var(--keyboard-inset, 0px));
+  }
+  .fixed.inset-0.flex.items-center.justify-center > * {
+    margin-block: 0.5rem;
+    flex-shrink: 0;
+  }
+}
+
+/* Scrolling pop-ups (see utils/keepFocusedFieldVisible): room at the bottom for the on-screen keyboard,
+   so the last field and the Save button can be scrolled above it. */
+.modal-scroll {
+  padding-bottom: calc(1rem + var(--keyboard-inset, 0px));
 }

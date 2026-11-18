@@ -357,9 +357,6 @@ export function LoanDetailPage() {
         />
       )}
 
-      <p className="text-xs text-gray-400 mt-4">
-        The repayment schedule uses a best-effort interest/amortization formula that has not been validated against BCKash's legacy system — see docs/interest-calculation-spec.md.
-      </p>
 
       <ConfirmationModal
         isOpen={showRequestChanges}
@@ -391,9 +388,7 @@ export function LoanDetailPage() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h2 className="text-lg font-heading font-bold text-primary mb-2">Disburse Loan</h2>
-            <p className="text-xs text-gray-500 mb-4">
-              This generates the full repayment schedule (best-effort formula — see docs/interest-calculation-spec.md).
-            </p>
+            <p className="text-xs text-gray-500 mb-4">This generates the full repayment schedule.</p>
             <p className="text-sm text-gray-700 mb-4 rounded-lg bg-gray-50 px-3 py-2">
               {disbursementModeLabel(loan.disbursementMode)}
               {loan.disbursementMode === 'BankTransfer' && ` to ${loan.disbursementAccountName ?? '—'}, ${loan.disbursementAccountNumber ?? '—'} (${loan.disbursementBankName ?? '—'})`}

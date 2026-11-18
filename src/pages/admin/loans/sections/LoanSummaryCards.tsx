@@ -73,7 +73,7 @@ export function LoanSummaryCards({ loanId, refreshToken }: { loanId: number; ref
     <div className="mb-6 space-y-4">
       <CompletionBanner summary={summary} />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-5">
         <Card icon={CoinsIcon} label="Principal" value={formatMoney(summary.principal)} />
         <Card
           icon={ReceiptIcon}
@@ -169,7 +169,7 @@ function Card({ icon: Icon, label, value, detail, tone }: { icon: typeof CoinsIc
         <Icon size={16} className="text-primary" />
         <span className="text-xs font-medium uppercase tracking-wide">{label}</span>
       </div>
-      <p className={`mt-2 font-heading text-xl font-bold ${tone === 'good' ? 'text-green-700' : 'text-gray-900'}`}>{value}</p>
+      <p className={`mt-2 whitespace-nowrap font-heading text-[clamp(0.95rem,4.2vw,1.25rem)] font-bold sm:text-xl ${tone === 'good' ? 'text-green-700' : 'text-gray-900'}`}>{value}</p>
       {detail && <p className="mt-1 text-xs text-gray-500">{detail}</p>}
     </div>
   );

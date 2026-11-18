@@ -241,8 +241,10 @@ function UploadModal({
   const inputClass = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label={slot.button}>
-      <form onSubmit={submit} className="w-full max-w-md rounded-2xl bg-white shadow-xl">
+    // The overlay scrolls (and pads for the on-screen keyboard — see keepFocusedFieldVisible).
+    <div className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/50" role="dialog" aria-modal="true" aria-label={slot.button}>
+      <div className="modal-scroll flex min-h-full items-start justify-center p-4 sm:items-center">
+      <form onSubmit={submit} className="my-4 w-full max-w-md rounded-2xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
           <h3 className="font-heading text-base font-bold text-gray-900">{slot.button}</h3>
           <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100" aria-label="Close">
@@ -312,6 +314,7 @@ function UploadModal({
           </button>
         </div>
       </form>
+      </div>
     </div>
   );
 }

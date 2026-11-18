@@ -32,7 +32,7 @@ export function BackButton() {
     <button
       type="button"
       onClick={goBack}
-      className="mb-4 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 -ml-2 text-sm font-medium text-gray-500 transition-colors hover:bg-white hover:text-primary"
+      className="mb-3 inline-flex min-h-[40px] items-center gap-1.5 rounded-lg px-2 py-2 -ml-2 text-sm font-medium text-gray-500 transition-colors hover:bg-white hover:text-primary"
     >
       <ArrowLeftIcon size={16} />
       Go back

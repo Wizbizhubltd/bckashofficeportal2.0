@@ -451,11 +451,11 @@ export function StatCard({
         </span>
         {to && <ArrowRightIcon size={16} className="text-slate-300 transition-all group-hover:translate-x-0.5 group-hover:text-primary" />}
       </div>
-      <p className="mt-4 text-sm font-medium text-slate-500">{label}</p>
+      <p className="mt-3 text-xs font-medium text-slate-500 sm:mt-4 sm:text-sm">{label}</p>
       {value === null ? (
         <div className="mt-2 h-8 w-24 animate-pulse rounded-md bg-slate-100" />
       ) : (
-        <p className="mt-1 font-heading text-2xl font-bold tracking-tight text-slate-900 sm:text-[28px]" title={valueTitle}>
+        <p className="mt-1 whitespace-nowrap font-heading text-[clamp(0.95rem,4.2vw,1.5rem)] font-bold tracking-tight text-slate-900 sm:text-2xl lg:text-[28px]" title={valueTitle}>
           {value}
         </p>
       )}
@@ -467,7 +467,7 @@ export function StatCard({
     </>
   );
 
-  const className = 'group block rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm transition-all';
+  const className = 'group block rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm transition-all sm:p-5';
   return to ? (
     <Link to={to} className={`${className} hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md`}>
       {body}
@@ -507,7 +507,7 @@ export function BriefCard<T>({
           )}
         </div>
         {viewAllTo && (
-          <Link to={viewAllTo} className="text-xs font-medium text-primary hover:text-accent">
+          <Link to={viewAllTo} className="-my-2 inline-flex min-h-[40px] items-center px-1 text-xs font-medium text-primary hover:text-accent">
             View all
           </Link>
         )}
